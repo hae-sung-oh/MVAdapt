@@ -115,7 +115,6 @@ export CHECKPOINT_ENDPOINT=/path/to/dataset/Routes_{route}_Repetition{repetition
 export SAVE_PATH=/path/to/dataset/Routes_{route}_Repetition{repetition}
 ```
 Again it is too slow to generate our dataset with a single computer, you should be using multiple GPUs. We provide a [python script](generate_dataset_slurm.py) for SLURM clusters, it works in the same fashion as the evaluation script.
-We will release the dataset we used at a later point.
 
 ## Training
 Agents are trained via the file [train.py](team_code/train.py).

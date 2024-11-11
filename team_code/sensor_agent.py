@@ -66,7 +66,7 @@ class SensorAgent(autonomous_agent.AutonomousAgent):
       loaded_config = pickle.load(args_file)
 
     # Generate new config for the case that it has new variables.
-    self.config = GlobalConfig()
+    self.config = GlobalConfig(int(os.getenv("VEHICLEINDEX", 0)))
     # Overwrite all properties that were set in the saved config.
     self.config.__dict__.update(loaded_config.__dict__)
 
@@ -188,6 +188,9 @@ class SensorAgent(autonomous_agent.AutonomousAgent):
       )
     else:
       self.save_path = None
+    
+    self.stuck_started = False  # Detects the start of a stuck state
+    self.was_stuck = False  # Tracks if the agent was stuck in the last step
 
   def _init(self):
     # During setup() not everything is available yet, so this _init is a second setup in run_step()
@@ -212,6 +215,8 @@ class SensorAgent(autonomous_agent.AutonomousAgent):
     self._route_planner = RoutePlanner(self.config.route_planner_min_distance, self.config.route_planner_max_distance)
     self._route_planner.set_route(self._global_plan, True)
     self.initialized = True
+    self.stuck_started = False  # Detects the start of a stuck state
+    self.was_stuck = False  # Tracks if the agent was stuck in the last step
 
   def sensors(self):
     sensors = [{
@@ -563,12 +568,16 @@ class SensorAgent(autonomous_agent.AutonomousAgent):
       self.stuck_detector += 1
     else:
       self.stuck_detector = 0
+      if self.was_stuck:  # Reset and print when no longer stuck
+            print(f"Detected agent no longer stuck. Step: {self.step}")
+            self.was_stuck = False
+            self.stuck_started = False
 
     # Restart mechanism in case the car got stuck. Not used a lot anymore but doesn't hurt to keep it.
     if self.stuck_detector > self.config.stuck_threshold:
       self.force_move = self.config.creep_duration
 
-    if self.force_move > 0:
+    if self.force_move > 0 and not self.stuck_started:
       emergency_stop = False
       if self.config.backbone not in ('aim'):
         # safety check
@@ -592,11 +601,15 @@ class SensorAgent(autonomous_agent.AutonomousAgent):
         throttle = max(self.config.creep_throttle, throttle)
         brake = False
         self.force_move -= 1
+        self.stuck_started = True
+        self.was_stuck = True
       else:
         print('Creeping stopped by safety box. Step: ', self.step)
         throttle = 0.0
         brake = True
         self.force_move = self.config.creep_duration
+        self.stuck_started = True
+        self.was_stuck = True
 
     if self.stop_sign_controller:
       if stop_for_stop_sign:

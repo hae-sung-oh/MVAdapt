@@ -5,7 +5,7 @@ Config class that contains all the hyperparameters needed to build any model.
 import os
 import carla
 import re
-
+from vehicle_config import VehicleConfig
 
 class GlobalConfig:
   """
@@ -23,7 +23,8 @@ class GlobalConfig:
       'SoftRain': carla.WeatherParameters.SoftRainSunset,
   }
 
-  def __init__(self):
+  def __init__(self, vehicle_index=0):
+    vehicle_config = VehicleConfig()
     """ base architecture configurations """
     # -----------------------------------------------------------------------------
     # Autopilot
@@ -97,7 +98,7 @@ class GlobalConfig:
     # Number of points the LiDAR generates per second.
     # Change in proportion to the rotation frequency.
     self.lidar_points_per_second = 600000
-    self.camera_pos = [-1.5, 0.0, 2.0]  # x, y, z mounting position of the camera
+    self.camera_pos = vehicle_config.config_list[vehicle_index]["camera_pos"]  # x, y, z mounting position of the camera
     self.camera_rot_0 = [0.0, 0.0, 0.0]  # Roll Pitch Yaw of camera 0 in degree
 
     # Therefore their size is smaller
@@ -505,9 +506,9 @@ class GlobalConfig:
     self.inital_frames_delay = 2.0 / self.carla_frame_rate
 
     # Extent of the ego vehicles bounding box
-    self.ego_extent_x = 2.4508416652679443
-    self.ego_extent_y = 1.0641621351242065
-    self.ego_extent_z = 0.7553732395172119
+    self.ego_extent_x = vehicle_config.config_list[vehicle_index]['vehicle_extent'][0]
+    self.ego_extent_y = vehicle_config.config_list[vehicle_index]['vehicle_extent'][1]
+    self.ego_extent_z = vehicle_config.config_list[vehicle_index]['vehicle_extent'][2]
 
     # Size of the safety box
     self.safety_box_z_min = 0.5

@@ -49,7 +49,7 @@ def main():
   torch.cuda.empty_cache()
 
   # Loads the default values for the argparse so we have only one default
-  config = GlobalConfig()
+  config = GlobalConfig(int(os.getenv("VEHICLEINDEX", 0)))
 
   parser = argparse.ArgumentParser()
   parser.add_argument('--id', type=str, default=config.id, help='Unique experiment identifier.')

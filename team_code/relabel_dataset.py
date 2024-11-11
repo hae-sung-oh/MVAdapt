@@ -277,7 +277,7 @@ def main():
     loaded_config = pickle.load(args_file)
 
   # Generate new config for the case that it has new variables.
-  config = GlobalConfig()
+  config = GlobalConfig(int(os.getenv("VEHICLEINDEX", 0)))
   # Overwrite all properties that were set in the save config.
   config.__dict__.update(loaded_config.__dict__)
 

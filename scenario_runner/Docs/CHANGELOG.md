@@ -1,5 +1,7 @@
 ## Table of Contents
 * [Latest Changes](#latest-changes)
+* [CARLA ScenarioRunner 0.9.12](#carla-scenariorunner-0912)
+* [CARLA ScenarioRunner 0.9.11](#carla-scenariorunner-0911)
 * [CARLA ScenarioRunner 0.9.10](#carla-scenariorunner-0910)
 * [CARLA ScenarioRunner 0.9.9](#carla-scenariorunner-099)
 * [CARLA ScenarioRunner 0.9.8](#carla-scenariorunner-098)
@@ -9,7 +11,59 @@
 * [CARLA ScenarioRunner 0.9.5](#carla-scenariorunner-095)
 * [CARLA ScenarioRunner 0.9.2](#carla-scenariorunner-092)
 
-## Latest Changes
+## Latest changes
+
+## CARLA ScenarioRunner 0.9.12
+### :rocket: New Features
+* OpenSCENARIO support:
+    - Added support for LongitudinalDistanceAction
+    - Extended RelativeDistanceCondition with support for 'longitudinal' and 'lateral' distance along with freespace.
+    - Added support for RelativeRoadPosition
+    - Added support for RoadPosition
+    - Added `--openscenarioparams` argument to overwrite global `ParameterDeclaration`
+    - Added controller using CARLA's autopilot (in replacement for ActivateControllerAction)
+    - Added support for storyboards with multiple stories
+    - Eliminated unnecessary reloads of OpenDRIVE maps
+* Additional Scenarios:
+    - Added Construction setup scenario.
+### :bug: Bug Fixes
+* Fixed LaneOffset (+ vs. -) for OpenSCENARIO
+* Fixed RelativeLanePosition for OpenSCENARIO causing exception when using ds != 0
+* Fixed bug at the Getting Started docs which caused an import error
+* Fixed neverending lane change maneuver in OpenSCENARIO
+* Fixed bug causing the spawning of an actor with `request_new_actor` to never activate the autopilot.
+* Fixed handling of evaluation criteria in OpenSCENARIO (using a delay value of .0 caused an exception)
+### :ghost: Maintenance
+* Extended SimpleVehicleController (OSC) to handle traffic lights
+* Generalized visualizer attached to OSC controllers
+* Fixed bug at the Getting Started docs which caused an import error
+* Improved the watchdog. It can now be paused, resumed and uses the same thread, instead of opening and closing new ones each frame.
+* Added `simple-watchdog-timer` library to the requirements, as it is used by the new watchdog. This requires Python 3.x from now on!
+* Extended CarlaDataProvider's spawning functions to allow filtering the safer blueprint, and optionally tick the server
+* Improved cleanup handling to resolve memory leak issues and resolve timeouts
+
+## CARLA ScenarioRunner 0.9.11
+### :rocket: New Features
+* Added a sensor barrier for the agents to ensure that the simulation waits for them to render their data.
+* Added an option to produce a machine-readable JSON version of the scenario report.
+* Added a static obstacle evasion OpenSCENARIO scenario
+* Added support for OSC Routing options
+* Added support for OSC SynchronizeAction
+* Added support for OSC LaneOffsetAction
+* Added support to place OSC controller implementation alongside the OSC scenario
+* Updated *GameTime.restart()* at *srunner/scenariomanager/timer.py* to also reset the frame number
+### :bug: Bug Fixes
+* Fixed metrics-manager.py failing to run with port argument
+* Fixed exception when using OSC scenarios without EnvironmentAction inside Storyboard-Init
+* Fixed bug causing the TrafficManager to not be correctly updated at asynchronous simualtions
+* Fixed shutdown issue in ScenarioRunner causing to not switch to asynchronous mode
+* Fixed OSC TeleportAction within Story
+* Fixed runtime exception on RouteScenario without an agent parameter 
+* Fixed bug causing the InTimeToArrivalToVehicle atomic to crash if one of the actors was a a static object
+* Fixed writing result files when using OpenSCENARIO under Windows (CARLA: prefix is removed from the filename)
+### :ghost: Maintenance
+* Added check to ensure OSC names (for story/act/maneuver) are unique
+
 
 ## CARLA ScenarioRunner 0.9.10
 ### :rocket: New Features
@@ -50,6 +104,7 @@
     - Added support for AcquirePositionAction
     - Extended FollowLeadingVehicle example to illustrate weather changes
     - Created example scenarios to illustrate usage of controllers and weather changes
+    - Extended LaneChangeAction to allow lane changes of multiple lanes
     - Reworked the handling of Catalogs to make it compliant to the 1.0 version (relative paths have to be relative to the scenario file)
     - The RoadNetwork can be defined as global Parameter
     - Fixed handling of relative positions with negative offset
@@ -77,6 +132,7 @@
     - InTimeToArrivalToVehicle has had its two actor arguments swapped, to match all the other behaviors.
     - Added *along_route* flag to InTimeToArrivalToVehicle, to take into account the topology of the road
     - Changed the inputs to TrafficLightStateSetter to match the other atomics, but the functionality remains unchanged
+    - Improved LaneChange atomic to allow lane changes of multiple lanes
 
 ### :bug: Bug Fixes
 * Fixed bug causing parsing RelativeTargetSpeed tag to fail. 
@@ -100,6 +156,8 @@
 * Fixed bug with ending roads near stop signals to break the simulation
 * Fixed exception bug in spawn function of CarlaDataProvider
 * Fixed access to private member of CARLA LocalPlanner inside OSC NpcVehicleControl
+* Fixed bug causing LaneChange to break the simulation if the asked lane change was impossible, instead of correctly stopping it
+* Fixed bug causing ChangeLane scenarios to never end
 * Fixed handling of OSC LanePosition (#625)
 * Fixed bug causing the route repetitions to spawn different background activity
 * Fixed bug causing the rotate_point function inside RunningRedLightTest to not function properly.
@@ -114,6 +172,8 @@
     - Added support to use a non-CARLA OpenDRIVE map (instead of CARLA towns)
     - Added support for TimeOfDay tag
     - Added support for scenarios with no actors
+    - Added support for TimeToCollisionCondition with freespace.
+    - Added support for TimeHeadwayCondition with freespace.
 * Scenario updates:
     - Scenarios that are part of RouteScenario have had their triggering condition modified. This will only activate when a certain parameter is set, and if not, the old trigger condition will still be applied.
 * Atomics:

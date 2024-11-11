@@ -55,11 +55,11 @@ class ScenarioManager(object):
         self._debug_mode = debug_mode
         self._agent = None
         self._sync_mode = sync_mode
+        self._watchdog = None
+        self._timeout = timeout
+
         self._running = False
         self._timestamp_last_run = 0.0
-        self._timeout = timeout
-        self._watchdog = Watchdog(float(self._timeout))
-
         self.scenario_duration_system = 0.0
         self.scenario_duration_game = 0.0
         self.start_system_time = None
@@ -81,6 +81,10 @@ class ScenarioManager(object):
         """
         This function triggers a proper termination of a scenario
         """
+
+        if self._watchdog is not None:
+            self._watchdog.stop()
+            self._watchdog = None
 
         if self.scenario is not None:
             self.scenario.terminate()
@@ -119,6 +123,7 @@ class ScenarioManager(object):
         self.start_system_time = time.time()
         start_game_time = GameTime.get_time()
 
+        self._watchdog = Watchdog(float(self._timeout))
         self._watchdog.start()
         self._running = True
 
@@ -131,8 +136,6 @@ class ScenarioManager(object):
                     timestamp = snapshot.timestamp
             if timestamp:
                 self._tick_scenario(timestamp)
-
-        self._watchdog.stop()
 
         self.cleanup()
 
@@ -165,7 +168,10 @@ class ScenarioManager(object):
             CarlaDataProvider.on_carla_tick()
 
             if self._agent is not None:
-                ego_action = self._agent()
+                ego_action = self._agent()  # pylint: disable=not-callable
+
+            if self._agent is not None:
+                self.ego_vehicles[0].apply_control(ego_action)
 
             # Tick scenario
             self.scenario_tree.tick_once()
@@ -177,9 +183,6 @@ class ScenarioManager(object):
 
             if self.scenario_tree.status != py_trees.common.Status.RUNNING:
                 self._running = False
-
-            if self._agent is not None:
-                self.ego_vehicles[0].apply_control(ego_action)
 
         if self._sync_mode and self._running and self._watchdog.get_status():
             CarlaDataProvider.get_world().tick()
@@ -197,7 +200,7 @@ class ScenarioManager(object):
         """
         self._running = False
 
-    def analyze_scenario(self, stdout, filename, junit):
+    def analyze_scenario(self, stdout, filename, junit, json):
         """
         This function is intended to be called from outside and provide
         the final statistics about the scenario (human-readable, in form of a junit
@@ -225,7 +228,7 @@ class ScenarioManager(object):
             timeout = True
             result = "TIMEOUT"
 
-        output = ResultOutputProvider(self, result, stdout, filename, junit)
+        output = ResultOutputProvider(self, result, stdout, filename, junit, json)
         output.write()
 
         return failure or timeout

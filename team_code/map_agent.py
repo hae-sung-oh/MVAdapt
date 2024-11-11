@@ -7,6 +7,7 @@ leaderboard/leaderboard/leaderboard_evaluator.py file
 
 import os
 from copy import deepcopy
+import sys
 
 import cv2
 import carla
@@ -167,7 +168,7 @@ class MapAgent(autonomous_agent.AutonomousAgent):
       loaded_config = pickle.load(args_file)
 
     # Generate new config for the case that it has new variables.
-    self.config = GlobalConfig()
+    self.config = GlobalConfig(int(os.getenv("VEHICLEINDEX", 0)))
     # Overwrite all properties that were set in the saved config.
     self.config.__dict__.update(loaded_config.__dict__)
 
@@ -267,6 +268,9 @@ class MapAgent(autonomous_agent.AutonomousAgent):
 
     # Path to where visualizations and other debug output gets stored
     self.save_path = os.environ.get('SAVE_PATH')
+    
+    self.stuck_started = False  # Detects the start of a stuck state
+    self.was_stuck = False  # Tracks if the agent was stuck in the last step
 
     # Logger that generates logs used for infraction replay in the results_parser.
     if self.save_path is not None and route_index is not None:
@@ -319,6 +323,8 @@ class MapAgent(autonomous_agent.AutonomousAgent):
     self._route_planner = RoutePlanner(self.config.route_planner_min_distance, self.config.route_planner_max_distance)
     self._route_planner.set_route(self._global_plan, True)
     self.initialized = True
+    self.stuck_started = False  # Detects the start of a stuck state
+    self.was_stuck = False  # Tracks if the agent was stuck in the last step
 
   def sensors(self):
     sensors = [{
@@ -675,6 +681,10 @@ class MapAgent(autonomous_agent.AutonomousAgent):
       self.stuck_detector += 1
     else:
       self.stuck_detector = 0
+      if self.was_stuck:  # Reset and print when no longer stuck
+            print(f"Detected agent no longer stuck. Step: {self.step}")
+            self.was_stuck = False
+            self.stuck_started = False
 
     # Restart mechanism in case the car got stuck. Not used a lot anymore but doesn't hurt to keep it.
     if self.stuck_detector > self.config.stuck_threshold:
@@ -699,11 +709,13 @@ class MapAgent(autonomous_agent.AutonomousAgent):
         safety_box = safety_box[safety_box[..., 0] < self.config.safety_box_x_max]
         emergency_stop = (len(safety_box) > 0)  # Checks if the List is empty
 
-      if not emergency_stop:
+      if not emergency_stop and not self.stuck_started:
         print('Detected agent being stuck. Step: ', self.step)
         throttle = max(self.config.creep_throttle, throttle)
         brake = False
         self.force_move -= 1
+        self.stuck_started = True
+        self.was_stuck = True
       else:
         print('Creeping stopped by safety box. Step: ', self.step)
         throttle = 0.0

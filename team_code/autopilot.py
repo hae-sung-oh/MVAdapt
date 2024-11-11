@@ -44,7 +44,7 @@ class AutoPilot(autonomous_agent_local.AutonomousAgent):
 
     self.datagen = int(os.environ.get('DATAGEN', 0)) == 1
 
-    self.config = GlobalConfig()
+    self.config = GlobalConfig(int(os.getenv("VEHICLEINDEX", 0)))
 
     self.speed_histogram = []
     self.make_histogram = int(os.environ.get('HISTOGRAM', 0))

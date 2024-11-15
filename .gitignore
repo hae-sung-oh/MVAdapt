@@ -134,7 +134,6 @@ dmypy.json
 
 # Custom
 evaluation/
-carla_0_9_10
 /team_code_latest/model_ckpt
 /.idea
 /results
@@ -148,3 +147,4 @@ team_code/checkpoints
 dataset/*
 dataset_mkz/*
 *.pickle
+scripts/set_enviroment.sh

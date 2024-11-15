@@ -29,6 +29,7 @@ share/python-wheels/
 .installed.cfg
 *.egg
 MANIFEST
+.vscode/
 
 # PyInstaller
 #  Usually these files are written by a python script from a template
@@ -144,3 +145,6 @@ pretrained_models*
 test*
 result/
 team_code/checkpoints
+dataset/*
+dataset_mkz/*
+*.pickle

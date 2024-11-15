@@ -13,23 +13,19 @@ Provisional code to evaluate Autonomous Agents for the CARLA Autonomous Driving 
 from __future__ import print_function
 
 import pickle
-import threading
 import traceback
 import argparse
 from argparse import RawTextHelpFormatter
 from datetime import datetime
-from distutils.version import LooseVersion
 import importlib
 import os
 import cv2
 import numpy as np
-import pkg_resources
 import sys
+import json
 
-import pygame
 import carla
 import signal
-import numpy.random as random
 
 from srunner.scenariomanager.carla_data_provider import *
 from srunner.scenariomanager.timer import GameTime
@@ -57,7 +53,6 @@ sensors_to_icons = {
     "sensor.camera.depth": "carla_camera",  # for datagen
 }
 
-global image_array
 
 class LeaderboardEvaluator(object):
     """
@@ -373,11 +368,11 @@ class LeaderboardEvaluator(object):
             # camera = self.client.get_world().get_actors().filter("sensor.camera.rgb")[0]
             # print(camera)
             # camera.listen(lambda image: process_image(image))
-                
+
             # camera_thread = threading.Thread(target=camera_listener)
-            # camera_thread.daemon = True 
+            # camera_thread.daemon = True
             # camera_thread.start()
-            
+
             self.manager.run_scenario()
 
         except AgentError as e:
@@ -409,7 +404,7 @@ class LeaderboardEvaluator(object):
             scenario.remove_all_actors()
 
             self._cleanup(result)
-            
+
             # camera_thread.join()
             # del camera
 
@@ -440,7 +435,7 @@ class LeaderboardEvaluator(object):
 
                 print("Save state.", flush=True)
                 route_indexer.save_state(args.checkpoint)
-                
+
                 success_list[route_indexer._index - 1] = result
                 with open(args.result_list, "wb") as f:
                     pickle.dump(success_list, f)
@@ -458,10 +453,10 @@ class LeaderboardEvaluator(object):
                 print(f"KeyboardInterrupt - Retry: {e}")
                 traceback.print_exc()
                 return False
-        
+
         self.global_statistics(args, route_indexer)
         return result
-    
+
     def global_statistics(self, args, route_indexer):
         # save global statistics
         print("\033[1m> Registering the global statistics\033[0m")
@@ -500,6 +495,7 @@ def argument_parser():
 
     return parser.parse_args()
 
+
 def process_image(image):
     global image_array
     if image is not None:
@@ -521,12 +517,25 @@ def process_image(image):
     # screen.blit(image_surface, (0, 0))
     # pygame.display.flip()
 
+
 def main(args):
     """
     Run the challenge mode
     """
     statistics_manager = StatisticsManager()
     route_indexer = RouteIndexer(args.routes, args.scenarios, args.repetitions)
+
+    checkpoint_dir = os.path.dirname(args.checkpoint)
+    if not os.path.exists(checkpoint_dir):
+        os.makedirs(checkpoint_dir)
+    if not os.path.exists(args.checkpoint):
+        with open(args.checkpoint, "w") as f:
+            json.dump({}, f)
+    if not os.path.exists(args.result_list):
+        success_list = [False] * len(route_indexer._configs_list)
+        with open(args.result_list, "wb") as f:
+            pickle.dump(success_list, f)
+
     if int(args.resume) == 0:
         statistics_manager.clear_record(args.checkpoint)
         route_indexer.save_state(args.checkpoint)
@@ -536,7 +545,6 @@ def main(args):
             success_list = pickle.load(f)
         route_indexer.resume(args.checkpoint)
         statistics_manager.resume(args.checkpoint)
-
 
     leaderboard_evaluator = LeaderboardEvaluator(args, statistics_manager)
 
@@ -553,22 +561,23 @@ def main(args):
             return False
             # leaderboard_evaluator = LeaderboardEvaluator(args, statistics_manager)
 
+
 def image_streaming():
-    global image_array  
+    global image_array
     while True:
         if image_array is not None:
             cv2.imshow("CARLA Camera Stream", image_array)
-            if cv2.waitKey(1) & 0xFF == ord('q'):
+            if cv2.waitKey(1) & 0xFF == ord("q"):
                 break
 
 
 if __name__ == "__main__":
     # pygame.init()
     # display_width = 1024
-    # display_height = 256  
+    # display_height = 256
     # screen = pygame.display.set_mode((display_width, display_height))
     # pygame.display.set_caption("CARLA Camera View")
-    
+
     args = argument_parser()
     # result = main(args, screen)
     # cv2.namedWindow("CARLA Camera Stream", cv2.WINDOW_NORMAL)

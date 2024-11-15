@@ -64,7 +64,8 @@ class DataAgent(AutoPilot):
         'pixels_per_meter': self.config.pixels_per_meter,
         'history_idx': [-1],
         'scale_bbox': True,
-        'scale_mask_col': 1.0
+        'scale_mask_col': 1.0,
+        'map_folder': 'maps'
     }
 
     self.stop_sign_criteria = RunStopSign(self._world)

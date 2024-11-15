@@ -259,7 +259,10 @@ class ScenarioLogger():
       self.ego_type = np.array([[[self.ego_vehicle.type_id]]])
 
     if not self.ego_color:
-      self.ego_color = np.array([[[self.ego_vehicle.attributes["color"]]]])
+      try:
+        self.ego_color = np.array([[[self.ego_vehicle.attributes["color"]]]])
+      except KeyError:
+        self.ego_color = np.array([[["0,0,0"]]])
 
     if not self.ego_height:
       self.ego_height = np.array([[[self.ego_vehicle.get_location().z]]])

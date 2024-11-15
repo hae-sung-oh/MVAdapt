@@ -147,4 +147,4 @@ team_code/checkpoints
 dataset/*
 dataset_mkz/*
 *.pickle
-scripts/set_enviroment.sh
+scripts/set_environment.sh

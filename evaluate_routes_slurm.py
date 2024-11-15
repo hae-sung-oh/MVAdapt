@@ -139,8 +139,8 @@ def main():
         num_repetitions = 3
         benchmark = "lav"
         experiment = "aim_02_05_withheld_0"
-        model_dir = "/home/ohs-dyros/gitRepo/carla_garage/pretrained_models/lav"
-        code_root = "/home/ohs-dyros/gitRepo/carla_garage"
+        model_dir = "/home/ohs-dyros/gitRepo/MVAdapt/pretrained_models/lav"
+        code_root = "/home/ohs-dyros/gitRepo/MVAdapt"
         carla_root = "/home/ohs-dyros/carla"
         partition = "slurm-gpu-partition"
         username = "slurm_username"

@@ -426,7 +426,21 @@ class RouteScenario(BasicScenario):
         """
         # Create the background activity of the route
         if os.getenv("BENCHMARK") == "longest6":
-            amount = 500  # use all spawn points
+            # amount = 500  # use all spawn points
+            town_amount = {
+                "Town01": 120,
+                "Town02": 100,
+                "Town03": 120,
+                "Town04": 200,
+                "Town05": 120,
+                "Town06": 150,
+                "Town07": 110,
+                "Town08": 180,
+                "Town09": 300,
+                "Town10HD": 120,
+            }
+
+            amount = town_amount[config.town] if config.town in town_amount else 0
         elif os.getenv("BENCHMARK") == "empty":
             amount = 0  # use all spawn points
         elif os.getenv("BENCHMARK") == "lav":
@@ -445,6 +459,8 @@ class RouteScenario(BasicScenario):
             }
 
             amount = town_amount[config.town] if config.town in town_amount else 0
+        elif os.getenv("BENCHMARK") == "collection":
+            amount = 20  # for data collection
         else:
             town_amount = {
                 "Town01": 130,

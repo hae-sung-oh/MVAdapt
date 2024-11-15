@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 
 cd ..
-mkdir data
-cd data
+mkdir dataset
+cd dataset
 
 down_load_unzip() {
   wget https://s3.eu-central-1.amazonaws.com/avg-projects-2/jaeger2023arxiv/dataset/$1.zip

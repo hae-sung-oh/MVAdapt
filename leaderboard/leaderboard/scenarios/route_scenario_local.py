@@ -459,16 +459,16 @@ class RouteScenario(BasicScenario):
             amount = town_amount[config.town] if config.town in town_amount else 0
         elif os.getenv("BENCHMARK") == "collection":
             town_amount = {
-                "Town01": 120,
-                "Town02": 100,
-                "Town03": 120,
-                "Town04": 200,
-                "Town05": 120,
-                "Town06": 150,
-                "Town07": 110,
-                "Town08": 180,
-                "Town09": 300,
-                "Town10HD": 120,
+                "Town01": 90,
+                "Town02": 80,
+                "Town03": 90,
+                "Town04": 100,
+                "Town05": 90,
+                "Town06": 120,
+                "Town07": 90,
+                "Town08": 140,
+                "Town09": 150,
+                "Town10HD": 100,
             }
             amount = town_amount[config.town] if config.town in town_amount else 0
         else:

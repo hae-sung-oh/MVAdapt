@@ -88,6 +88,21 @@ class GlobalConfig:
     # LiDAR compression parameters
     self.point_format = 0  # LARS point format used for storing
     self.point_precision = 0.001  # Precision up to which LiDAR points are stored
+    
+    # -----------------------------------------------------------------------------
+    # Physics config
+    # -----------------------------------------------------------------------------
+    self.max_mass = 15000.0
+    self.min_mass = 1.0
+    self.max_extent = 20.0
+    self.min_extent = 0.1
+    self.max_max_rpm = 20000.0
+    self.min_max_rpm = 10.0
+    self.max_torque_curve = 10000.0
+    self.min_torque_curve = 0.0
+    self.max_radius = 100.0
+    self.min_radius = 1.0
+    
 
     # -----------------------------------------------------------------------------
     # Sensor config
@@ -171,11 +186,11 @@ class GlobalConfig:
     self.id = 'transfuser'  # Unique experiment identifier.
     self.epochs = 31  # Number of epochs to train
     self.lr = 1e-4  # Learning rate used for training
-    self.batch_size = 32  # Batch size used during training
+    self.batch_size = 1  # Batch size used during training
     self.logdir = ''  # Directory to log data to.
     self.load_file = None  # File to continue training from
     self.setting = 'all'  # Setting used for training
-    self.root_dir = ''  # Dataset root dir
+    self.root_dir = os.getenv("WORK_DIR", '') + "/dataset"  # Dataset root dir
     # When to reduce the learning rate for the first and second  time
     self.schedule_reduce_epoch_01 = 30
     self.schedule_reduce_epoch_02 = 40
@@ -574,6 +589,7 @@ class GlobalConfig:
     for town in self.train_towns:
       root_files = os.listdir(os.path.join(self.root_dir, town))  # Town folders
       for file in root_files:
+        print(file)
         # Only load as many repetitions as specified
         repetition = int(re.search('Repetition(\\d+)', file).group(1))
         if repetition >= self.num_repetitions:

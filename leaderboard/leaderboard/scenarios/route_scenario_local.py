@@ -57,16 +57,16 @@ SECONDS_GIVEN_PER_METERS = 0.8
 INITIAL_SECONDS_DELAY = 5.0
 
 NUMBER_CLASS_TRANSLATION = {
-    "Scenario1": ControlLoss,
+    "Scenario1": ControlLoss, # !
     "Scenario2": FollowLeadingVehicle,
-    "Scenario3": DynamicObjectCrossing,
-    "Scenario4": VehicleTurningRoute,
+    "Scenario3": DynamicObjectCrossing, # !
+    "Scenario4": VehicleTurningRoute, # !
     "Scenario5": OtherLeadingVehicle,
     "Scenario6": ManeuverOppositeDirection,
-    "Scenario7": SignalJunctionCrossingRoute,
-    "Scenario8": SignalJunctionCrossingRoute,
-    "Scenario9": SignalJunctionCrossingRoute,
-    "Scenario10": NoSignalJunctionCrossingRoute,
+    "Scenario7": SignalJunctionCrossingRoute, # !
+    "Scenario8": SignalJunctionCrossingRoute, # !
+    "Scenario9": SignalJunctionCrossingRoute, # !
+    "Scenario10": NoSignalJunctionCrossingRoute, # !
 }
 
 
@@ -225,7 +225,7 @@ class RouteScenario(BasicScenario):
 
         # Print route in debug mode
         if debug_mode:
-            self._draw_waypoints(world, self.route, vertical_shift=1.0, persistency=50000.0)
+            self._draw_waypoints(world, self.route, vertical_shift=1.0, persistency=50000.0) # type: ignore
 
     def _update_ego_vehicle(self):
         """
@@ -439,7 +439,6 @@ class RouteScenario(BasicScenario):
                 "Town09": 300,
                 "Town10HD": 120,
             }
-
             amount = town_amount[config.town] if config.town in town_amount else 0
         elif os.getenv("BENCHMARK") == "empty":
             amount = 0  # use all spawn points
@@ -457,10 +456,21 @@ class RouteScenario(BasicScenario):
                 "Town09": 300,
                 "Town10HD": 120,
             }
-
             amount = town_amount[config.town] if config.town in town_amount else 0
         elif os.getenv("BENCHMARK") == "collection":
-            amount = 20  # for data collection
+            town_amount = {
+                "Town01": 120,
+                "Town02": 100,
+                "Town03": 120,
+                "Town04": 200,
+                "Town05": 120,
+                "Town06": 150,
+                "Town07": 110,
+                "Town08": 180,
+                "Town09": 300,
+                "Town10HD": 120,
+            }
+            amount = town_amount[config.town] if config.town in town_amount else 0
         else:
             town_amount = {
                 "Town01": 130,

@@ -313,7 +313,7 @@ class ObsManager(ObsManagerBase):
             corners_in_pixel = np.array([[self._world_to_pixel(corner)] for corner in corners])
             corners_warped = cv.transform(corners_in_pixel, m_warp)
 
-            cv.fillConvexPoly(mask, np.round(corners_warped).astype(int32), 1)
+            cv.fillConvexPoly(mask, np.round(corners_warped).astype(int), 1)
         return mask.astype(bool)
 
     @staticmethod

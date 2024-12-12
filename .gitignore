@@ -146,5 +146,7 @@ result/
 team_code/checkpoints
 dataset/*
 dataset_mkz/*
+dataset*
 *.pickle
 scripts/set_environment.sh
+logs/

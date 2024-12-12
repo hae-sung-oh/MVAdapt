@@ -1,11 +1,7 @@
 #!/bin/bash
 
 export RESUME=1
-# export VEHICLEINDEX=6
-
 export HOST="127.0.0.1"
-# export PORT="20000"
-# export TRAFFIC_MANAGER_PORT="20500"
 export TRAFFIC_MANAGER_SEED="0"
 export DEBUG=0
 export TIMEOUT="6000.0"
@@ -16,16 +12,14 @@ export TRACK="MAP"
 export DIRECT=0
 
 export SCENARIO_DIRECTORY="${WORK_DIR}/leaderboard/data/training"
-# export SCENE=1
-# export TOWN=Town02
 
 export ROUTES="${SCENARIO_DIRECTORY}/routes/s${SCENE}/${TOWN}_Scenario${SCENE}.xml"
 export SCENARIOS="${SCENARIO_DIRECTORY}/scenarios/s${SCENE}/${TOWN}_Scenario${SCENE}.json"
 export DATAGEN=1
 export BENCHMARK=collection
-export CHECKPOINT_ENDPOINT=${WORK_DIR}/dataset/Routes_${TOWN}_V${VEHICLEINDEX}/Dataset_generation_${TOWN}_V${VEHICLEINDEX}.json
-export SAVE_PATH=${WORK_DIR}/dataset/Routes_${TOWN}_V${VEHICLEINDEX}
-export RESULT_LIST="${WORK_DIR}/dataset/Routes_${TOWN}_V${VEHICLEINDEX}/result_list_${VEHICLEINDEX}.pickle"
+export CHECKPOINT_ENDPOINT=${WORK_DIR}/dataset/${TOWN}/Routes_${TOWN}_Repetition0_V${VEHICLEINDEX}/Dataset_generation_${TOWN}_V${VEHICLEINDEX}.json
+export SAVE_PATH=${WORK_DIR}/dataset/${TOWN}/Routes_${TOWN}_Repetition0_V${VEHICLEINDEX}
+export RESULT_LIST="${WORK_DIR}/dataset/${TOWN}/Routes_${TOWN}_Repetition0_V${VEHICLEINDEX}/result_list_${VEHICLEINDEX}.pickle"
 
 EXIT_CODE=-1 
 

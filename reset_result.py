@@ -4,7 +4,7 @@ import subprocess
 from glob import glob
 
 try:
-    result = subprocess.run("source set_environment.sh", shell=True, capture_output=True, text=True)
+    result = subprocess.run("source ./script/set_environment.sh", shell=True, capture_output=True, text=True)
     work_dir = os.getenv("WORK_DIR")
 except:
     print("Error: source set_environment.sh")
@@ -13,7 +13,7 @@ except:
 success_list = [False] * 16
 
 for i in range(38):
-    with open(f"{work_dir}/result/result_list_{i}.pickle", "wb") as f:
+    with open(f"./result/pkl/result_list_{i}.pickle", "wb") as f:
         pickle.dump(success_list, f)
 
 

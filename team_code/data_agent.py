@@ -46,6 +46,7 @@ class DataAgent(AutoPilot):
       (self.save_path / 'bev_semantics').mkdir()
       (self.save_path / 'bev_semantics_augmented').mkdir()
       (self.save_path / 'boxes').mkdir()
+      (self.save_path / 'control').mkdir()
 
     self.tmp_visu = int(os.environ.get('TMP_VISU', 0))
 
@@ -74,8 +75,8 @@ class DataAgent(AutoPilot):
 
     self.ss_bev_manager_augmented = ObsManager(obs_config, self.config)
 
-    bb_copy = carla.BoundingBox(self._vehicle.bounding_box.location, self._vehicle.bounding_box.extent)
-    transform_copy = carla.Transform(self._vehicle.get_transform().location, self._vehicle.get_transform().rotation)
+    bb_copy = carla.BoundingBox(self._vehicle.bounding_box.location, self._vehicle.bounding_box.extent) # type: ignore
+    transform_copy = carla.Transform(self._vehicle.get_transform().location, self._vehicle.get_transform().rotation) # type: ignore
     # Can't clone the carla vehicle object, so I use a dummy class with similar attributes.
     self.augmented_vehicle_dummy = t_u.CarlaActorDummy(self._vehicle.get_world(), bb_copy, transform_copy,
                                                        self._vehicle.id)
@@ -204,14 +205,14 @@ class DataAgent(AutoPilot):
     if self.last_lidar is not None:
       ego_transform = self._vehicle.get_transform()
       ego_location = ego_transform.location
-      last_ego_location = self.last_ego_transform.location
+      last_ego_location = self.last_ego_transform.location # type: ignore
       relative_translation = np.array([
           ego_location.x - last_ego_location.x, ego_location.y - last_ego_location.y,
           ego_location.z - last_ego_location.z
       ])
 
       ego_yaw = ego_transform.rotation.yaw
-      last_ego_yaw = self.last_ego_transform.rotation.yaw
+      last_ego_yaw = self.last_ego_transform.rotation.yaw # type: ignore
       relative_rotation = np.deg2rad(t_u.normalize_angle_degree(ego_yaw - last_ego_yaw))
 
       orientation_target = np.deg2rad(ego_yaw)
@@ -254,7 +255,7 @@ class DataAgent(AutoPilot):
   @torch.inference_mode()
   def run_step(self, input_data, timestamp, sensors=None, plant=False):
     if not ('hd_map' in input_data.keys()) and not self.initialized:
-      control = carla.VehicleControl()
+      control = carla.VehicleControl() # type: ignore
       control.steer = 0.0
       control.throttle = 0.0
       control.brake = 1.0
@@ -273,7 +274,7 @@ class DataAgent(AutoPilot):
 
     if self.step % self.config.data_save_freq == 0:
       if self.save_path is not None and self.datagen:
-        self.save_sensors(tick_data)
+        self.save_sensors(tick_data, control)
 
     self.last_lidar = input_data['lidar']
     self.last_ego_transform = self._vehicle.get_transform()
@@ -293,15 +294,15 @@ class DataAgent(AutoPilot):
     self.augmentation_rotation.append(augmentation_rotation)
     for sensor in sensors:
       if 'rgb_augmented' in sensor[0] or 'semantics_augmented' in sensor[0] or 'depth_augmented' in sensor[0]:
-        camera_pos_augmented = carla.Location(x=self.config.camera_pos[0],
+        camera_pos_augmented = carla.Location(x=self.config.camera_pos[0], # type: ignore
                                               y=self.config.camera_pos[1] + augmentation_translation,
                                               z=self.config.camera_pos[2])
 
-        camera_rot_augmented = carla.Rotation(pitch=self.config.camera_rot_0[0],
+        camera_rot_augmented = carla.Rotation(pitch=self.config.camera_rot_0[0], # type: ignore
                                               yaw=self.config.camera_rot_0[1] + augmentation_rotation,
                                               roll=self.config.camera_rot_0[2])
 
-        camera_augmented_transform = carla.Transform(camera_pos_augmented, camera_rot_augmented)
+        camera_augmented_transform = carla.Transform(camera_pos_augmented, camera_rot_augmented) # type: ignore
 
         sensor[1].set_transform(camera_augmented_transform)
 
@@ -310,9 +311,9 @@ class DataAgent(AutoPilot):
       # We are still rendering the map for the current frame, so we need to use the translation from the last frame.
       last_translation = self.augmentation_translation[0]
       last_rotation = self.augmentation_rotation[0]
-      bb_copy = carla.BoundingBox(self._vehicle.bounding_box.location, self._vehicle.bounding_box.extent)
-      transform_copy = carla.Transform(self._vehicle.get_transform().location, self._vehicle.get_transform().rotation)
-      augmented_loc = transform_copy.transform(carla.Location(0.0, last_translation, 0.0))
+      bb_copy = carla.BoundingBox(self._vehicle.bounding_box.location, self._vehicle.bounding_box.extent) # type: ignore
+      transform_copy = carla.Transform(self._vehicle.get_transform().location, self._vehicle.get_transform().rotation) # type: ignore
+      augmented_loc = transform_copy.transform(carla.Location(0.0, last_translation, 0.0)) # type: ignore
       transform_copy.location = augmented_loc
       transform_copy.rotation.yaw = transform_copy.rotation.yaw + last_rotation
       self.augmented_vehicle_dummy.bounding_box = bb_copy
@@ -334,52 +335,62 @@ class DataAgent(AutoPilot):
     vehicles = self._world.get_actors().filter('*vehicle*')
     if weather.sun_altitude_angle < 0.0:
       for vehicle in vehicles:
-        vehicle.set_light_state(carla.VehicleLightState(self._vehicle_lights))
+        vehicle.set_light_state(carla.VehicleLightState(self._vehicle_lights)) # type: ignore
     else:
       for vehicle in vehicles:
-        vehicle.set_light_state(carla.VehicleLightState.NONE)
+        vehicle.set_light_state(carla.VehicleLightState.NONE) # type: ignore
 
-  def save_sensors(self, tick_data):
+  def save_sensors(self, tick_data, control):
     frame = self.step // self.config.data_save_freq
 
     # CARLA images are already in opencv's BGR format.
-    cv2.imwrite(str(self.save_path / 'rgb' / (f'{frame:04}.jpg')), tick_data['rgb'])
-    cv2.imwrite(str(self.save_path / 'rgb_augmented' / (f'{frame:04}.jpg')), tick_data['rgb_augmented'])
+    if self.save_path is not None:
+        cv2.imwrite(str(self.save_path / 'rgb' / (f'{frame:04}.jpg')), tick_data['rgb'])
+        cv2.imwrite(str(self.save_path / 'rgb_augmented' / (f'{frame:04}.jpg')), tick_data['rgb_augmented'])
 
-    cv2.imwrite(str(self.save_path / 'semantics' / (f'{frame:04}.png')), tick_data['semantics'])
-    cv2.imwrite(str(self.save_path / 'semantics_augmented' / (f'{frame:04}.png')), tick_data['semantics_augmented'])
+        cv2.imwrite(str(self.save_path / 'semantics' / (f'{frame:04}.png')), tick_data['semantics'])
+        cv2.imwrite(str(self.save_path / 'semantics_augmented' / (f'{frame:04}.png')), tick_data['semantics_augmented'])
 
-    cv2.imwrite(str(self.save_path / 'depth' / (f'{frame:04}.png')), tick_data['depth'])
-    cv2.imwrite(str(self.save_path / 'depth_augmented' / (f'{frame:04}.png')), tick_data['depth_augmented'])
+        cv2.imwrite(str(self.save_path / 'depth' / (f'{frame:04}.png')), tick_data['depth'])
+        cv2.imwrite(str(self.save_path / 'depth_augmented' / (f'{frame:04}.png')), tick_data['depth_augmented'])
 
-    cv2.imwrite(str(self.save_path / 'bev_semantics' / (f'{frame:04}.png')), tick_data['bev_semantics'])
-    cv2.imwrite(str(self.save_path / 'bev_semantics_augmented' / (f'{frame:04}.png')),
-                tick_data['bev_semantics_augmented'])
+        cv2.imwrite(str(self.save_path / 'bev_semantics' / (f'{frame:04}.png')), tick_data['bev_semantics'])
+        cv2.imwrite(str(self.save_path / 'bev_semantics_augmented' / (f'{frame:04}.png')),
+                    tick_data['bev_semantics_augmented'])
 
-    # Specialized LiDAR compression format
-    header = laspy.LasHeader(point_format=self.config.point_format)
-    header.offsets = np.min(tick_data['lidar'], axis=0)
-    header.scales = np.array([self.config.point_precision, self.config.point_precision, self.config.point_precision])
+        # Specialized LiDAR compression format
+        header = laspy.LasHeader(point_format=self.config.point_format)
+        header.offsets = np.min(tick_data['lidar'], axis=0)
+        header.scales = np.array([self.config.point_precision, self.config.point_precision, self.config.point_precision])
 
-    with laspy.open(self.save_path / 'lidar' / (f'{frame:04}.laz'), mode='w', header=header) as writer:
-      point_record = laspy.ScaleAwarePointRecord.zeros(tick_data['lidar'].shape[0], header=header)
-      point_record.x = tick_data['lidar'][:, 0]
-      point_record.y = tick_data['lidar'][:, 1]
-      point_record.z = tick_data['lidar'][:, 2]
+        with laspy.open(self.save_path / 'lidar' / (f'{frame:04}.laz'), mode='w', header=header) as writer:
+            point_record = laspy.ScaleAwarePointRecord.zeros(tick_data['lidar'].shape[0], header=header)
+            point_record.x = tick_data['lidar'][:, 0]
+            point_record.y = tick_data['lidar'][:, 1]
+            point_record.z = tick_data['lidar'][:, 2]
 
-      writer.write_points(point_record)
+            writer.write_points(point_record)
 
-    with gzip.open(self.save_path / 'boxes' / (f'{frame:04}.json.gz'), 'wt', encoding='utf-8') as f:
-      json.dump(tick_data['bounding_boxes'], f, indent=4)
+        with gzip.open(self.save_path / 'boxes' / (f'{frame:04}.json.gz'), 'wt', encoding='utf-8') as f:
+            json.dump(tick_data['bounding_boxes'], f, indent=4)
+            
+        with gzip.open(self.save_path / 'control' / (f'{frame:04}.json.gz'), 'wt', encoding='utf-8') as f:
+            throttle = control.throttle
+            steer = control.steer
+            brake = control.brake
+            json.dump({'throttle': throttle, 'steer': steer, 'brake': brake}, f, indent=4)
 
   def destroy(self, results=None):
+    print('Destroying DataAgent')
     torch.cuda.empty_cache()
 
     if results is not None and self.save_path is not None:
+      print('Saving results')
       with gzip.open(os.path.join(self.save_path, 'results.json.gz'), 'wt', encoding='utf-8') as f:
         json.dump(results.__dict__, f, indent=2)
-
+      print('Results saved')
     super().destroy(results)
+    print('DataAgent destroyed')
 
   def get_bounding_boxes(self, lidar=None):
     results = []
@@ -497,7 +508,7 @@ class DataAgent(AutoPilot):
     for traffic_light in self.close_traffic_lights:
       traffic_light_extent = [traffic_light[0].extent.x, traffic_light[0].extent.y, traffic_light[0].extent.z]
 
-      traffic_light_transform = carla.Transform(traffic_light[0].location, traffic_light[0].rotation)
+      traffic_light_transform = carla.Transform(traffic_light[0].location, traffic_light[0].rotation) # type: ignore
       traffic_light_rotation = traffic_light_transform.rotation
       traffic_light_matrix = np.array(traffic_light_transform.get_matrix())
       yaw = np.deg2rad(traffic_light_rotation.yaw)
@@ -523,7 +534,7 @@ class DataAgent(AutoPilot):
     for stop_sign in self.close_stop_signs:
       stop_sign_extent = [stop_sign[0].extent.x, stop_sign[0].extent.y, stop_sign[0].extent.z]
 
-      stop_sign_transform = carla.Transform(stop_sign[0].location, stop_sign[0].rotation)
+      stop_sign_transform = carla.Transform(stop_sign[0].location, stop_sign[0].rotation) # type: ignore
       stop_sign_rotation = stop_sign_transform.rotation
       stop_sign_matrix = np.array(stop_sign_transform.get_matrix())
       yaw = np.deg2rad(stop_sign_rotation.yaw)
@@ -576,4 +587,4 @@ class DataAgent(AutoPilot):
 
     final = np.concatenate((visu_img, rendered), axis=0)
 
-    Image.fromarray(final).save(self.save_path / (f'{self.step:04}.jpg'))
+    Image.fromarray(final).save(self.save_path / (f'{self.step:04}.jpg')) # type: ignore

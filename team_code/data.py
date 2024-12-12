@@ -56,6 +56,7 @@ class CARLA_Data(Dataset):  # pylint: disable=locally-disabled, invalid-name
     self.future_boxes = []
     self.measurements = []
     self.sample_start = []
+    self.control = []
 
     self.temporal_lidars = []
     self.temporal_measurements = []
@@ -112,6 +113,7 @@ class CARLA_Data(Dataset):  # pylint: disable=locally-disabled, invalid-name
           box = []
           future_box = []
           measurement = []
+          control = []
 
           # Loads the current (and past) frames (if seq_len > 1)
           for idx in range(self.config.seq_len):
@@ -125,6 +127,7 @@ class CARLA_Data(Dataset):  # pylint: disable=locally-disabled, invalid-name
               depth.append(route_dir + '/depth' + (f'/{(seq + idx):04}.png'))
               depth_augmented.append(route_dir + '/depth_augmented' + (f'/{(seq + idx):04}.png'))
               lidar.append(route_dir + '/lidar' + (f'/{(seq + idx):04}.laz'))
+              control.append(route_dir + '/control' + (f'/{(seq + idx):04}.json.gz'))
 
               if estimate_sem_distribution:
                 semantics_i = self.converter[cv2.imread(semantic[-1], cv2.IMREAD_UNCHANGED)]  # pylint: disable=locally-disabled, unsubscriptable-object
@@ -176,6 +179,7 @@ class CARLA_Data(Dataset):  # pylint: disable=locally-disabled, invalid-name
           self.future_boxes.append(future_box)
           self.measurements.append(measurement)
           self.sample_start.append(seq)
+          self.control.append(control)
 
     if estimate_class_distributions:
       classes_target_speeds = np.unique(self.speed_distribution)
@@ -221,6 +225,7 @@ class CARLA_Data(Dataset):  # pylint: disable=locally-disabled, invalid-name
     self.boxes = np.array(self.boxes).astype(np.string_)
     self.future_boxes = np.array(self.future_boxes).astype(np.string_)
     self.measurements = np.array(self.measurements).astype(np.string_)
+    self.control = np.array(self.control).astype(np.string_)
 
     self.temporal_lidars = np.array(self.temporal_lidars).astype(np.string_)
     self.temporal_measurements = np.array(self.temporal_measurements).astype(np.string_)
@@ -255,6 +260,7 @@ class CARLA_Data(Dataset):  # pylint: disable=locally-disabled, invalid-name
     future_boxes = self.future_boxes[index]
     measurements = self.measurements[index]
     sample_start = self.sample_start[index]
+    control = self.control[index]
 
     if self.config.lidar_seq_len > 1:
       temporal_lidars = self.temporal_lidars[index]
@@ -273,6 +279,7 @@ class CARLA_Data(Dataset):  # pylint: disable=locally-disabled, invalid-name
     loaded_boxes = []
     loaded_future_boxes = []
     loaded_measurements = []
+    loaded_control = None
 
     # Because the strings are stored as numpy byte objects we need to
     # convert them back to utf-8 strings
@@ -319,7 +326,7 @@ class CARLA_Data(Dataset):  # pylint: disable=locally-disabled, invalid-name
       # Retrieve data from the disc cache
       if not self.data_cache is None and cache_key in self.data_cache:
         boxes_i, future_boxes_i, images_i, images_augmented_i, semantics_i, semantics_augmented_i, bev_semantics_i,\
-        bev_semantics_augmented_i, depth_i, depth_augmented_i, lidars_i = self.data_cache[cache_key]
+        bev_semantics_augmented_i, depth_i, depth_augmented_i, lidars_i, control_i = self.data_cache[cache_key]
         if not self.config.use_plant:
           images_i = cv2.imdecode(images_i, cv2.IMREAD_UNCHANGED)
           if self.config.use_semantic:
@@ -352,6 +359,7 @@ class CARLA_Data(Dataset):  # pylint: disable=locally-disabled, invalid-name
         lidars_i = None
         future_boxes_i = None
         boxes_i = None
+        control_i = None
 
         # Load bounding boxes
         if self.config.detect_boxes or self.config.use_plant:
@@ -367,6 +375,7 @@ class CARLA_Data(Dataset):  # pylint: disable=locally-disabled, invalid-name
 
           images_i = cv2.imread(str(images[i], encoding='utf-8'), cv2.IMREAD_COLOR)
           images_i = cv2.cvtColor(images_i, cv2.COLOR_BGR2RGB)
+          control_i = ujson.load(gzip.open(str(control[i], encoding='utf-8'), 'rt', encoding='utf-8'))
           if self.config.use_semantic:
             semantics_i = cv2.imread(str(semantics[i], encoding='utf-8'), cv2.IMREAD_UNCHANGED)
           if self.config.use_bev_semantic:
@@ -396,6 +405,7 @@ class CARLA_Data(Dataset):  # pylint: disable=locally-disabled, invalid-name
           compressed_depth_i = None
           compressed_depth_augmented_i = None
           compressed_lidar_i = None
+          compressed_control_i = None
 
           if not self.config.use_plant:
             _, compressed_image_i = cv2.imencode('.jpg', images_i)
@@ -428,11 +438,12 @@ class CARLA_Data(Dataset):  # pylint: disable=locally-disabled, invalid-name
               writer.write_points(point_record)
 
             compressed_lidar_i.seek(0)  # Resets file handle to the start
-
+          compressed_control_i = ujson.dumps(control_i)
+          
           self.data_cache[cache_key] = (boxes_i, future_boxes_i, compressed_image_i, compressed_image_augmented_i,
                                         compressed_semantic_i, compressed_semantic_augmented_i,
                                         compressed_bev_semantic_i, compressed_bev_semantic_augmented_i,
-                                        compressed_depth_i, compressed_depth_augmented_i, compressed_lidar_i)
+                                        compressed_depth_i, compressed_depth_augmented_i, compressed_lidar_i, compressed_control_i)
 
       loaded_images.append(images_i)
       loaded_images_augmented.append(images_augmented_i)
@@ -448,6 +459,7 @@ class CARLA_Data(Dataset):  # pylint: disable=locally-disabled, invalid-name
       loaded_lidars.append(lidars_i)
       loaded_boxes.append(boxes_i)
       loaded_future_boxes.append(future_boxes_i)
+      loaded_control = control_i
 
     loaded_temporal_lidars = []
     loaded_temporal_measurements = []
@@ -659,6 +671,7 @@ class CARLA_Data(Dataset):  # pylint: disable=locally-disabled, invalid-name
     data['junction'] = current_measurement['junction']
     data['speed'] = current_measurement['speed']
     data['theta'] = current_measurement['theta']
+    data['control_brake'] = current_measurement['control_brake']
     data['command'] = t_u.command_to_one_hot(current_measurement['command'])
     data['next_command'] = t_u.command_to_one_hot(current_measurement['next_command'])
 
@@ -692,6 +705,7 @@ class CARLA_Data(Dataset):  # pylint: disable=locally-disabled, invalid-name
     aim_wp = np.array(current_measurement['aim_wp'])
     aim_wp = self.augment_target_point(aim_wp, y_augmentation=aug_translation, yaw_augmentation=aug_rotation)
     data['aim_wp'] = aim_wp
+    data['control'] = loaded_control
 
     return data
 

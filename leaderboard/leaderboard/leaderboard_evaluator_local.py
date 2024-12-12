@@ -175,7 +175,7 @@ class LeaderboardEvaluator(object):
 
         if not wait_for_ego_vehicles:
             for vehicle in ego_vehicles:
-                self.ego_vehicles.append(CarlaDataProvider.request_new_actor(vehicle.model, vehicle.transform, vehicle.rolename, color=vehicle.color, vehicle_category=vehicle.category))
+                self.ego_vehicles.append(CarlaDataProvider.request_new_actor(vehicle.model, vehicle.transform, vehicle.rolename, color=vehicle.color, vehicle_category=vehicle.category)) # type: ignore
 
         else:
             ego_vehicle_missing = True
@@ -374,6 +374,7 @@ class LeaderboardEvaluator(object):
             # camera_thread.start()
 
             self.manager.run_scenario()
+            print("Scenario finished")
 
         except AgentError as e:
             # The agent has failed -> stop the route

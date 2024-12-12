@@ -124,7 +124,7 @@ class ScenarioManager(object):
 
         self._watchdog.start()
         self._running = True
-
+        print("running scenario: entering while loop")
         while self._running:
             timestamp = None
             world = CarlaDataProvider.get_world()
@@ -134,6 +134,7 @@ class ScenarioManager(object):
                     timestamp = snapshot.timestamp
             if timestamp:
                 self._tick_scenario(timestamp)
+        print("running scenario: exited while loop")
 
     def _tick_scenario(self, timestamp):
         """

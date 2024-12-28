@@ -20,8 +20,10 @@ from leaderboard.autoagents import autonomous_agent
 from model import LidarCenterNet
 from config import GlobalConfig
 from data import CARLA_Data
+from mvadapt import MVAdapt
 from nav_planner import RoutePlanner
 from nav_planner import extrapolate_waypoint_route
+import mvadapt_train as m_t
 
 from filterpy.kalman import MerweScaledSigmaPoints
 from filterpy.kalman import UnscentedKalmanFilter as UKF
@@ -51,7 +53,7 @@ class SensorAgent(autonomous_agent.AutonomousAgent):
     Main class that runs the agents with the run_step function
     """
 
-  def setup(self, path_to_conf_file, route_index=None):
+  def setup(self, path_to_conf_file, route_index=None, verbose=True):
     """Sets up the agent. route_index is for logging purposes"""
 
     torch.cuda.empty_cache()
@@ -66,7 +68,8 @@ class SensorAgent(autonomous_agent.AutonomousAgent):
       loaded_config = pickle.load(args_file)
 
     # Generate new config for the case that it has new variables.
-    self.config = GlobalConfig(int(os.getenv("VEHICLEINDEX", 0)))
+    self.vehicle_index = int(os.getenv("VEHICLEINDEX", 0))
+    self.config = GlobalConfig(self.vehicle_index)
     # Overwrite all properties that were set in the saved config.
     self.config.__dict__.update(loaded_config.__dict__)
 
@@ -123,7 +126,7 @@ class SensorAgent(autonomous_agent.AutonomousAgent):
           # Model was trained with Sync. Batch Norm.
           # Need to convert it otherwise parameters will load wrong.
           net = torch.nn.SyncBatchNorm.convert_sync_batchnorm(net)
-        state_dict = torch.load(os.path.join(path_to_conf_file, file), map_location=self.device)
+        state_dict = torch.load(os.path.join(path_to_conf_file, file),weights_only=True, map_location=self.device)
 
         net.load_state_dict(state_dict, strict=False)
         net.cuda(device=self.device)
@@ -184,13 +187,24 @@ class SensorAgent(autonomous_agent.AutonomousAgent):
           logging_freq=self.config.logging_freq,
           log_only=True,
           route_only=False,  # with vehicles
-          roi=self.config.logger_region_of_interest,
+          roi=int(self.config.logger_region_of_interest),
       )
     else:
       self.save_path = None
     
     self.stuck_started = False  # Detects the start of a stuck state
     self.was_stuck = False  # Tracks if the agent was stuck in the last step
+    
+    self.adapt = os.getenv('ADAPT', 0)
+    if self.adapt:
+      print('MVAdapt is on.')
+      dim0, dim1, dim2, dim3 = int(os.getenv('DIM0', 32)), int(os.getenv('DIM1', 32)), int(os.getenv('DIM2', 64)), int(os.getenv('DIM3', 64))
+      self.adaptation_module = MVAdapt(dim0, dim1, dim2, dim3)
+      try:
+        self.adaptation_module.load(os.getenv('ADAPT_PATH'))
+      except Exception as e:
+        print(f'Could not load MVAdapt model. Using random weights: {e}')
+      self.physics_prop, self.gear_prop = m_t.load_physics_data(self.vehicle_index)
 
   def _init(self):
     # During setup() not everything is available yet, so this _init is a second setup in run_step()
@@ -430,7 +444,7 @@ class SensorAgent(autonomous_agent.AutonomousAgent):
         lidar_histogram = lidar_histogram.to(self.device, dtype=torch.float32)
         lidar_bev.append(lidar_histogram)
 
-        lidar_bev = torch.cat(lidar_bev, dim=1)
+        lidar_bev = torch.cat(lidar_bev, dim=1) # type: ignore
 
     if self.config.backbone not in ('aim'):
       self.lidar_last = deepcopy(tick_data['lidar'])
@@ -531,6 +545,11 @@ class SensorAgent(autonomous_agent.AutonomousAgent):
     if self.config.use_wp_gru:
       self.pred_wp = torch.stack(pred_wps, dim=0).mean(dim=0)
 
+    if self.adapt:
+      self.pred_wp = self.pred_wp.flatten()
+      self.pred_wp = self.adaptation_module.forward(self.pred_wp, self.physics_prop, self.gear_prop)[0]
+      self.pred_wp = self.pred_wp.reshape(1, -1, 2)
+    
     if self.config.use_controller_input_prediction:
       pred_target_speed = torch.stack(pred_target_speeds, dim=0).mean(dim=0)
       pred_aim_wp = torch.stack(pred_checkpoints, dim=0).mean(dim=0)
@@ -620,6 +639,13 @@ class SensorAgent(autonomous_agent.AutonomousAgent):
 
     # CARLA will not let the car drive in the initial frames.
     # We set the action to brake so that the filter does not get confused.
+    # if self.adapt:
+    #   print(f"IN: {control.throttle}, {control.steer}, {control.brake}")
+    #   control = torch.tensor([control.steer, control.throttle, control.brake], dtype=torch.float32, device=self.device)
+    #   control = self.adaptation_module.forward(control, self.physics_prop, self.gear_prop)[0]
+    #   control = carla.VehicleControl(throttle=float(control[0]), steer=float(control[1]), brake=float(float(control[2]) > 0.5))
+    #   print(f"OUT: {control.throttle}, {control.steer}, {control.brake}\n")
+      
     if self.step < self.config.inital_frames_delay:
       self.control = carla.VehicleControl(0.0, 0.0, 1.0)
     else:

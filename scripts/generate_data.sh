@@ -19,7 +19,7 @@ export DATAGEN=1
 export BENCHMARK=collection
 export CHECKPOINT_ENDPOINT=${WORK_DIR}/dataset/${TOWN}/Routes_${TOWN}_Repetition0_V${VEHICLEINDEX}/Dataset_generation_${TOWN}_V${VEHICLEINDEX}.json
 export SAVE_PATH=${WORK_DIR}/dataset/${TOWN}/Routes_${TOWN}_Repetition0_V${VEHICLEINDEX}
-export RESULT_LIST="${WORK_DIR}/dataset/${TOWN}/Routes_${TOWN}_Repetition0_V${VEHICLEINDEX}/result_list_${VEHICLEINDEX}.pickle"
+export RESULT_LIST="${WORK_DIR}/dataset/${TOWN}/Routes_${TOWN}_Repetition0_V${VEHICLEINDEX}/s${SCENE}_result_list_${VEHICLEINDEX}.pickle"
 
 EXIT_CODE=-1 
 

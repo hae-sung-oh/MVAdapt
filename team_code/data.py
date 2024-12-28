@@ -33,7 +33,10 @@ class CARLA_Data(Dataset):  # pylint: disable=locally-disabled, invalid-name
                estimate_class_distributions=False,
                estimate_sem_distribution=False,
                shared_dict=None,
-               rank=0):
+               clear_crashed=False,
+               clear_imperfect=False,
+               rank=0,
+               verbose=True):
     self.config = config
     assert config.img_seq_len == 1
 
@@ -70,6 +73,7 @@ class CARLA_Data(Dataset):  # pylint: disable=locally-disabled, invalid-name
     self.semantic_distribution = np.arange(len(config.semantic_weights)).tolist()
     total_routes = 0
     perfect_routes = 0
+    imperfect_routes = 0
     crashed_routes = 0
 
     for sub_root in tqdm(root, file=sys.stdout, disable=rank != 0):
@@ -83,6 +87,10 @@ class CARLA_Data(Dataset):  # pylint: disable=locally-disabled, invalid-name
         if not os.path.isfile(route_dir + '/results.json.gz'):
           total_routes += 1
           crashed_routes += 1
+          if clear_crashed:
+            if verbose:
+              print(f'Removing {route_dir} because it is missing results.json.gz')
+            os.system(f'rm -rf {route_dir}')
           continue
 
         with gzip.open(route_dir + '/results.json.gz', 'rt', encoding='utf-8') as f:
@@ -91,6 +99,11 @@ class CARLA_Data(Dataset):  # pylint: disable=locally-disabled, invalid-name
 
         # We skip data where the expert did not achieve perfect driving score
         if results_route['scores']['score_composed'] < 100.0:
+          imperfect_routes += 1
+          if clear_imperfect:
+            if verbose:
+              print(f'Removing {route_dir} because it is imperfect')
+            os.system(f'rm -rf {route_dir}')
           continue
 
         perfect_routes += 1
@@ -130,7 +143,7 @@ class CARLA_Data(Dataset):  # pylint: disable=locally-disabled, invalid-name
               control.append(route_dir + '/control' + (f'/{(seq + idx):04}.json.gz'))
 
               if estimate_sem_distribution:
-                semantics_i = self.converter[cv2.imread(semantic[-1], cv2.IMREAD_UNCHANGED)]  # pylint: disable=locally-disabled, unsubscriptable-object
+                semantics_i = self.converter[cv2.imread(semantic[-1], cv2.IMREAD_UNCHANGED)]  # type: ignore # pylint: disable=locally-disabled, unsubscriptable-object
                 self.semantic_distribution.extend(semantics_i.flatten().tolist())
 
             box.append(route_dir + '/boxes' + (f'/{(seq + idx):04}.json.gz'))
@@ -199,8 +212,8 @@ class CARLA_Data(Dataset):  # pylint: disable=locally-disabled, invalid-name
       semantic_weights = compute_class_weight(class_weight='balanced',
                                               classes=classes_semantic,
                                               y=self.semantic_distribution)
-
-      print('Semantic weights:', semantic_weights)
+      if verbose:
+        print('Semantic weights:', semantic_weights)
 
     del self.angle_distribution
     del self.speed_distribution
@@ -230,10 +243,11 @@ class CARLA_Data(Dataset):  # pylint: disable=locally-disabled, invalid-name
     self.temporal_lidars = np.array(self.temporal_lidars).astype(np.string_)
     self.temporal_measurements = np.array(self.temporal_measurements).astype(np.string_)
     self.sample_start = np.array(self.sample_start)
-    if rank == 0:
+    if rank == 0 and verbose:
       print(f'Loading {len(self.lidars)} lidars from {len(root)} folders')
       print('Total amount of routes:', total_routes)
       print('Crashed routes:', crashed_routes)
+      print('Imperfect routes:', imperfect_routes)
       print('Perfect routes:', perfect_routes)
 
   def __len__(self):
@@ -498,9 +512,9 @@ class CARLA_Data(Dataset):  # pylint: disable=locally-disabled, invalid-name
           processed_image = loaded_images_augmented[self.config.seq_len - 1]
 
         if self.config.use_semantic:
-          semantics_i = self.converter[loaded_semantics_augmented[self.config.seq_len - 1]]  # pylint: disable=locally-disabled, unsubscriptable-object
+          semantics_i = self.converter[loaded_semantics_augmented[self.config.seq_len - 1]]  # type: ignore # pylint: disable=locally-disabled, unsubscriptable-object
         if self.config.use_bev_semantic:
-          bev_semantics_i = self.bev_converter[loaded_bev_semantics_augmented[self.config.seq_len - 1]]  # pylint: disable=locally-disabled, unsubscriptable-object
+          bev_semantics_i = self.bev_converter[loaded_bev_semantics_augmented[self.config.seq_len - 1]]  # type: ignore # pylint: disable=locally-disabled, unsubscriptable-object
         if self.config.use_depth:
           # We saved the data in 8 bit and now convert back to float.
           depth_i = loaded_depth_augmented[self.config.seq_len - 1].astype(np.float32) / 255.0  # pylint: disable=locally-disabled, unsubscriptable-object
@@ -512,9 +526,9 @@ class CARLA_Data(Dataset):  # pylint: disable=locally-disabled, invalid-name
           processed_image = loaded_images[self.config.seq_len - 1]
 
         if self.config.use_semantic:
-          semantics_i = self.converter[loaded_semantics[self.config.seq_len - 1]]  # pylint: disable=locally-disabled, unsubscriptable-object
+          semantics_i = self.converter[loaded_semantics[self.config.seq_len - 1]]  # type: ignore # pylint: disable=locally-disabled, unsubscriptable-object
         if self.config.use_bev_semantic:
-          bev_semantics_i = self.bev_converter[loaded_bev_semantics[self.config.seq_len - 1]]  # pylint: disable=locally-disabled, unsubscriptable-object
+          bev_semantics_i = self.bev_converter[loaded_bev_semantics[self.config.seq_len - 1]]  # type: ignore # pylint: disable=locally-disabled, unsubscriptable-object
         if self.config.use_depth:
           depth_i = loaded_depth[self.config.seq_len - 1].astype(np.float32) / 255.0  # pylint: disable=locally-disabled, unsubscriptable-object
 

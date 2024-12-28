@@ -24,7 +24,8 @@ class GlobalConfig:
   }
 
   def __init__(self, vehicle_index=0):
-    vehicle_config = VehicleConfig()
+    self.vehicle_index = vehicle_index
+    self.vehicle_config = VehicleConfig().config_list[vehicle_index]
     """ base architecture configurations """
     # -----------------------------------------------------------------------------
     # Autopilot
@@ -102,7 +103,10 @@ class GlobalConfig:
     self.min_torque_curve = 0.0
     self.max_radius = 100.0
     self.min_radius = 1.0
-    
+    self.max_wheelbase = 500.0
+    self.min_wheelbase = 1.0
+    self.max_gear_num = 8
+    self.max_torque_num = 4
 
     # -----------------------------------------------------------------------------
     # Sensor config
@@ -113,7 +117,7 @@ class GlobalConfig:
     # Number of points the LiDAR generates per second.
     # Change in proportion to the rotation frequency.
     self.lidar_points_per_second = 600000
-    self.camera_pos = vehicle_config.config_list[vehicle_index]["camera_pos"]  # x, y, z mounting position of the camera
+    self.camera_pos = self.vehicle_config["camera_pos"]  # x, y, z mounting position of the camera
     self.camera_rot_0 = [0.0, 0.0, 0.0]  # Roll Pitch Yaw of camera 0 in degree
 
     # Therefore their size is smaller
@@ -268,7 +272,9 @@ class GlobalConfig:
     self.lidar_aug_prob = 1.0  # Probability with which data augmentation is applied to the LiDAR image.
     self.freeze_backbone = False  # Whether to freeze the image backbone during training. Useful for 2 stage training.
     self.learn_multi_task_weights = False  # Whether to learn the multi-task weights
-    self.use_bev_semantic = True  # Whether to use bev semantic segmentation as auxiliary loss for training.
+    self.use_bev_semantic = True# The code `use_bev` is not a valid Python syntax. It seems like it is a placeholder or a
+    # comment in the code. It does not perform any specific action or operation in Python.
+    # Whether to use bev semantic segmentation as auxiliary loss for training.
     self.use_depth = True  # Whether to use depth prediction as auxiliary loss for training.
     self.num_repetitions = 3  # How many repetitions of the dataset we train with.
     self.continue_epoch = True  # Whether to continue the training from the loaded epoch or from 0.
@@ -521,9 +527,9 @@ class GlobalConfig:
     self.inital_frames_delay = 2.0 / self.carla_frame_rate
 
     # Extent of the ego vehicles bounding box
-    self.ego_extent_x = vehicle_config.config_list[vehicle_index]['vehicle_extent'][0]
-    self.ego_extent_y = vehicle_config.config_list[vehicle_index]['vehicle_extent'][1]
-    self.ego_extent_z = vehicle_config.config_list[vehicle_index]['vehicle_extent'][2]
+    self.ego_extent_x = self.vehicle_config['vehicle_extent'][0]
+    self.ego_extent_y = self.vehicle_config['vehicle_extent'][1]
+    self.ego_extent_z = self.vehicle_config['vehicle_extent'][2]
 
     # Size of the safety box
     self.safety_box_z_min = 0.5
@@ -558,12 +564,29 @@ class GlobalConfig:
     self.plant_multitask = False
     self.plant_max_speed_pred = 60.0  # Maximum speed we classify when forcasting cars.
     self.forcast_time = 0.5  # Number of seconds we forcast into the future
+    
+  def update_vehicle(self, vehicle_index):
+    self.vehicle_index = vehicle_index
+    self.vehicle_config = VehicleConfig().config_list[vehicle_index]
+    self.ego_extent_x = self.vehicle_config['vehicle_extent'][0]
+    self.ego_extent_y = self.vehicle_config['vehicle_extent'][1]
+    self.ego_extent_z = self.vehicle_config['vehicle_extent'][2]
 
-  def initialize(self, root_dir='', setting='all', **kwargs):
+    self.safety_box_y_min = -self.ego_extent_y * 0.8
+    self.safety_box_y_max = self.ego_extent_y * 0.8
+
+    self.safety_box_x_min = self.ego_extent_x
+    self.safety_box_x_max = self.ego_extent_x + 2.5 
+
+  def initialize(self, root_dir='', setting='all', vehicle_index=None, verbose=True, **kwargs):
     for k, v in kwargs.items():
       setattr(self, k, v)
 
     self.root_dir = root_dir
+    
+    if vehicle_index is not None:
+      assert vehicle_index < len(VehicleConfig().config_list), f'Error: Vehicle index {vehicle_index} does not exist.'
+      assert type(vehicle_index) == int, f'Error: Vehicle index {vehicle_index} is not an integer.'
 
     if setting == 'all':
       first_val_town = 'this_key_does_not_exist'
@@ -582,32 +605,46 @@ class GlobalConfig:
     else:
       raise ValueError(f'Error: Selected setting: {setting} does not exist.')
 
-    print('Setting: ', setting)
+    if verbose:
+      print('Setting: ', setting)
     self.train_towns = os.listdir(self.root_dir)  # Scenario Folders
     self.val_towns = self.train_towns
     self.train_data, self.val_data = [], []
+    
+    if verbose:
+      print("Train folders:")
     for town in self.train_towns:
       root_files = os.listdir(os.path.join(self.root_dir, town))  # Town folders
       for file in root_files:
-        print(file)
         # Only load as many repetitions as specified
         repetition = int(re.search('Repetition(\\d+)', file).group(1))
         if repetition >= self.num_repetitions:
           continue
+        if vehicle_index is not None and int(re.search('V(\\d+)', file).group(1)) != vehicle_index:
+          continue
         # We don't train on two towns and reserve them for validation
         if ((file.find(first_val_town) != -1) or (file.find(second_val_town) != -1)):
           continue
+        if verbose:
+          print(file)
         if not os.path.isfile(os.path.join(self.root_dir, file)):
           self.train_data.append(os.path.join(self.root_dir, town, file))
+    
+    if verbose:  
+      print("Test folders:")
     for town in self.val_towns:
       root_files = os.listdir(os.path.join(self.root_dir, town))
       for file in root_files:
         repetition = int(re.search('Repetition(\\d+)', file).group(1))
         if repetition >= self.num_repetitions:
           continue
+        if vehicle_index is not None and int(re.search('V(\\d+)', file).group(1)) != vehicle_index:
+          continue
         # Only use withheld towns for validation
         if ((file.find(first_val_town) == -1) and (file.find(second_val_town) == -1)):
           continue
+        if verbose:
+          print(file)
         if not os.path.isfile(os.path.join(self.root_dir, file)):
           self.val_data.append(os.path.join(self.root_dir, town, file))
 

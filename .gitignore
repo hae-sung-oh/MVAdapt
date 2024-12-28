@@ -152,3 +152,5 @@ scripts/set_environment.sh
 logs/
 pyrightconfig.json
 .importance_df.json
+debug*/
+wandb/

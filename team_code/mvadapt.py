@@ -3,38 +3,26 @@ import torch.nn as nn
 import torch.nn.functional as F
 import carla
 
-class FowardGearEncoder(nn.Module):
-    def __init__(self, max_length, embed_dim=16, num_heads=4, ff_dim=64, num_layers=2, output_dim=4):
-        self.max_length = max_length
-        super(FowardGearEncoder, self).__init__()
-        self.embedding = nn.Linear(3, embed_dim)
-        self.positional_encoding = nn.Parameter(torch.zeros(1, max_length, embed_dim))
-        self.encoder_layer = nn.TransformerEncoderLayer(
-            d_model=embed_dim, nhead=num_heads, dim_feedforward=ff_dim
-        )
-        self.transformer = nn.TransformerEncoder(self.encoder_layer, num_layers=num_layers)
-        self.fc = nn.Linear(embed_dim, output_dim)  
-
-
+class ForwardGearEncoder(nn.Module):
+    def __init__(self, input_dim, latent_dim, output_dim, device='cuda:0'):
+        super(ForwardGearEncoder, self).__init__()
+        self.fc = nn.Sequential(
+            nn.Linear(input_dim, latent_dim),
+            nn.ReLU(),
+            nn.Linear(latent_dim, output_dim),
+            nn.ReLU(),
+        ).to(device)
+        
     def forward(self, x):
-        padded_data = torch.zeros((self.max_length, 3))
-        mask = torch.zeros((self.max_length))
-        for i, gear in enumerate(x):
-            padded_data[i] = gear
-            mask[i] = 1
-        x = padded_data
-        x = self.embedding(x) + self.positional_encoding
-        key_padding_mask = (mask == 0).reshape(1, -1)
-        x = self.transformer(x.permute(1, 0, 2), src_key_padding_mask=key_padding_mask)
-        x = torch.mean(x, dim=0)
-        return self.fc(x)[0]
-
+        return self.fc(x)
+    
 class PhysicsEncoder(nn.Module):
-    def __init__(self, input_dim, latent_dim, gear_max_length=8, gear_dim=4):
+    def __init__(self, input_dim, latent_dim, gear_max_length=24, gear_dim=4, device='cuda:0'):
         super(PhysicsEncoder, self).__init__()
         self.input_dim = input_dim
         self.latent_dim = latent_dim
-        self.gear_encoder = FowardGearEncoder(max_length=gear_max_length, output_dim=gear_dim)
+        self.device = device
+        self.gear_encoder = ForwardGearEncoder(input_dim=gear_max_length, latent_dim=8, output_dim=gear_dim).to(device)
         self.encoder = nn.Sequential(
             nn.Linear(input_dim + gear_dim, 64),
             nn.ReLU(),
@@ -42,57 +30,86 @@ class PhysicsEncoder(nn.Module):
         )
     
     def forward(self, physics_params, gear_params):
-        if physics_params.shape[0] != self.input_dim:
-            raise ValueError(f"Expected input dimension {self.input_dim}, got {physics_params.shape[0]}")
-        # physics_params = physics_params.to('cuda')
+        physics_params = physics_params.to(self.device)
         gear_latent = self.gear_encoder(gear_params)
-        physics_params = torch.cat((physics_params, gear_latent), dim=0)
+        if physics_params.dim() == 1:
+            physics_params = physics_params.unsqueeze(0)
+        if gear_latent.dim() == 1:
+            gear_latent = gear_latent.unsqueeze(0)
+        physics_params = torch.cat((physics_params, gear_latent), dim=1)
         return self.encoder(physics_params)
-
 class MVAdapt(nn.Module):
-    def __init__(self, layer_dim0, layer_dim1, physics_input_dim=15, gear_max_length=8, gear_dim=4):
+    def __init__(self, layer_dim0, layer_dim1, layer_dim2, layer_dim3, physics_input_dim=18, gear_max_length=24, gear_dim=4, device='cuda:0'):
         super(MVAdapt, self).__init__()
         self.layer_dim0 = layer_dim0
         self.layer_dim1 = layer_dim1
-        physics_latent_dim = 3 * layer_dim0 + layer_dim0 * layer_dim1 + layer_dim1 * 3
-        self.physics_encoder = PhysicsEncoder(physics_input_dim, physics_latent_dim, gear_max_length, gear_dim)
+        self.layer_dim2 = layer_dim2
+        self.layer_dim3 = layer_dim3
+        self.device = device
         
-        self.layer0 = nn.Linear(3, layer_dim0)
-        self.layer1 = nn.Linear(layer_dim0, layer_dim1)
-        self.layer2 = nn.Linear(layer_dim1, 3)
-        
-        self.adaptation_module = nn.Sequential(
-            self.layer0, 
-            nn.ReLU(),
-            self.layer1,
-            nn.ReLU(),
-            self.layer2,
+        physics_latent_dim = (
+            16 * layer_dim0 + layer_dim0 + 
+            layer_dim0 * layer_dim1 + layer_dim1 + 
+            layer_dim1 * layer_dim2 + layer_dim2 +
+            layer_dim2 * layer_dim3 + layer_dim3 +
+            16 * layer_dim3 + 16
         )
-    
+        
+        self.physics_encoder = PhysicsEncoder(
+            input_dim=physics_input_dim, 
+            latent_dim=physics_latent_dim, 
+            gear_max_length=gear_max_length, 
+            gear_dim=gear_dim
+        ).to(device)
+
     def forward(self, control_input, physics_params, gear_params):
-        weights = self.physics_encoder(physics_params, gear_params)
-        control_input = torch.tensor([[control_input.throttle, control_input.steer, control_input.brake]])
+        if control_input.dim() == 1:
+            control_input = control_input.unsqueeze(0)
+
+        batch_size = control_input.size(0)
         
-        weights0 = weights[:3 * self.layer_dim0].view(self.layer_dim0, 3)
-        weights1 = weights[3 * self.layer_dim0: 3 * self.layer_dim0 + self.layer_dim0 * self.layer_dim1].view(self.layer_dim1, self.layer_dim0)
-        weights2 = weights[3 * self.layer_dim0 + self.layer_dim0 * self.layer_dim1:].view(3, self.layer_dim1)
-        biases0 = torch.zeros(self.layer_dim0)
-        biases1 = torch.zeros(self.layer_dim1)
-        biases2 = torch.zeros(3)
+        weights = self.physics_encoder(physics_params, gear_params).to(self.device)
         
-        with torch.no_grad():
-            self.layer0.weight = nn.Parameter(weights0)
-            self.layer0.bias = nn.Parameter(biases0)
-            self.layer1.weight = nn.Parameter(weights1)
-            self.layer1.bias = nn.Parameter(biases1)
-            self.layer2.weight = nn.Parameter(weights2)
-            self.layer2.bias = nn.Parameter(biases2)
+        index0 = 16 * self.layer_dim0
+        index1 = index0 + self.layer_dim0
+        index2 = index1 + self.layer_dim0 * self.layer_dim1
+        index3 = index2 + self.layer_dim1
+        index4 = index3 + self.layer_dim1 * self.layer_dim2
+        index5 = index4 + self.layer_dim2
+        index6 = index5 + self.layer_dim2 * self.layer_dim3
+        index7 = index6 + self.layer_dim3
+        index8 = index7 + 16 * self.layer_dim3
         
-        output = self.adaptation_module(control_input)
+        weights0 = weights[:, :index0].view(batch_size, self.layer_dim0, 16).to(self.device)
+        biases0 = weights[:, index0:index1].view(batch_size, self.layer_dim0).to(self.device)
+        weights1 = weights[:, index1:index2].view(batch_size, self.layer_dim1, self.layer_dim0).to(self.device)
+        biases1 = weights[:, index2:index3].view(batch_size, self.layer_dim1).to(self.device)
+        weights2 = weights[:, index3:index4].view(batch_size, self.layer_dim2, self.layer_dim1).to(self.device)
+        biases2 = weights[:, index4:index5].view(batch_size, self.layer_dim2).to(self.device)
+        weights3 = weights[:, index5:index6].view(batch_size, self.layer_dim3, self.layer_dim2).to(self.device)
+        biases3 = weights[:, index6:index7].view(batch_size, self.layer_dim3).to(self.device)
+        weights4 = weights[:, index7:index8].view(batch_size, 16, self.layer_dim3).to(self.device)
+        biases4 = weights[:, index8:].view(batch_size, 16).to(self.device)
         
-        output = carla.VehicleControl( # type: ignore
-            throttle=float(torch.sigmoid(output[:, 0])), 
-            steer=float(torch.tanh(output[:, 1])), 
-            brake=float(torch.sigmoid(output[:, 2]))
-        )
-        return output
+        outputs = []
+        for i in range(batch_size):
+            x = torch.nn.functional.linear(control_input[i], weights0[i], biases0[i])
+            x = torch.relu(x)
+            x = torch.nn.functional.linear(x, weights1[i], biases1[i])
+            x = torch.relu(x)
+            x = torch.nn.functional.linear(x, weights2[i], biases2[i])
+            x = torch.relu(x)
+            x = torch.nn.functional.linear(x, weights3[i], biases3[i])
+            x = torch.relu(x)
+            x = torch.nn.functional.linear(x, weights4[i], biases4[i])
+            outputs.append(x)
+
+        outputs = torch.stack(outputs)
+        return outputs
+
+    def save(self, path):
+        torch.save(self.state_dict(), path)
+
+    def load(self, path, device='cuda:0'):
+        self.load_state_dict(torch.load(path, weights_only=True))
+        self.to(device)

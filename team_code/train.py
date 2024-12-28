@@ -16,7 +16,7 @@ import torch
 import torch.nn.functional as F
 from torch import optim
 from torch.utils.data import DataLoader
-from torch.utils.tensorboard import SummaryWriter
+from torch.utils.tensorboard import SummaryWriter # type: ignore
 from torch.distributed.elastic.multiprocessing.errors import record
 from torch.distributed.optim import ZeroRedundancyOptimizer
 import torch.multiprocessing as mp
@@ -526,9 +526,9 @@ def main():
 
   if bool(args.zero_redundancy_optimizer):
     # Saves GPU memory during DDP training
-    optimizer = ZeroRedundancyOptimizer(params, optimizer_class=optim.AdamW, lr=args.lr, amsgrad=True)
+    optimizer = ZeroRedundancyOptimizer(params, optimizer_class=optim.AdamW, lr=args.lr, amsgrad=True) # type: ignore
   else:
-    optimizer = optim.AdamW(params, lr=args.lr, amsgrad=True)
+    optimizer = optim.AdamW(params, lr=args.lr, amsgrad=True) # type: ignore
 
   if not args.load_file is None and not config.freeze_backbone and args.continue_epoch:
     optimizer.load_state_dict(torch.load(args.load_file.replace('model_', 'optimizer_'), map_location=device))

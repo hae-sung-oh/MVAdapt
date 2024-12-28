@@ -26,11 +26,11 @@ class LidarCenterNet(nn.Module):
   The main model class. It can run all model configurations.
   """
 
-  def __init__(self, config):
+  def __init__(self, config, verbose=True):
     super().__init__()
     self.config = config
 
-    self.data = CARLA_Data(root=[], config=self.config, shared_dict=None)
+    self.data = CARLA_Data(root=[], config=self.config, shared_dict=None, verbose=verbose)
 
     self.speed_histogram = []
     self.make_histogram = int(os.environ.get('HISTOGRAM', 0))
@@ -715,7 +715,7 @@ class LidarCenterNet(nn.Module):
       converter[1][0:3] = 40
       bev_semantic_image = converter[bev_semantic_indices, ...].astype('uint8')
       alpha = np.ones_like(bev_semantic_indices) * 0.33
-      alpha = alpha.astype(np.float)
+      alpha = alpha.astype(float)
       alpha[bev_semantic_indices == 0] = 0.0
       alpha[bev_semantic_indices == 1] = 0.1
 
@@ -733,7 +733,7 @@ class LidarCenterNet(nn.Module):
       converter[1][0:3] = 40
       bev_semantic_image = converter[bev_semantic_indices, ...].astype('uint8')
       alpha = np.ones_like(bev_semantic_indices) * 0.33
-      alpha = alpha.astype(np.float)
+      alpha = alpha.astype(float)
       alpha[bev_semantic_indices == 0] = 0.0
       alpha[bev_semantic_indices == 1] = 0.1
 

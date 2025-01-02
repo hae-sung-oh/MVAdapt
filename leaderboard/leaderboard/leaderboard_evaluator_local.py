@@ -424,8 +424,10 @@ class LeaderboardEvaluator(object):
 
     def run(self, args, route_indexer, success_list):
         result = True
+        run = False
         while route_indexer.peek() and result and not success_list[route_indexer._index]:
             try:
+                run = True
                 print("Starting new route.", flush=True)
                 # setup
                 config = route_indexer.next()
@@ -454,8 +456,8 @@ class LeaderboardEvaluator(object):
                 print(f"KeyboardInterrupt - Retry: {e}")
                 traceback.print_exc()
                 return False
-
-        self.global_statistics(args, route_indexer)
+        if run:
+            self.global_statistics(args, route_indexer)
         return result
 
     def global_statistics(self, args, route_indexer):

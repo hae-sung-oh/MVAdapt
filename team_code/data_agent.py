@@ -381,7 +381,6 @@ class DataAgent(AutoPilot):
             json.dump({'throttle': throttle, 'steer': steer, 'brake': brake}, f, indent=4)
 
   def destroy(self, results=None):
-    print('Destroying DataAgent')
     torch.cuda.empty_cache()
 
     if results is not None and self.save_path is not None:
@@ -390,7 +389,6 @@ class DataAgent(AutoPilot):
         json.dump(results.__dict__, f, indent=2)
       print('Results saved')
     super().destroy(results)
-    print('DataAgent destroyed')
 
   def get_bounding_boxes(self, lidar=None):
     results = []

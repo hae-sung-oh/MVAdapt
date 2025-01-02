@@ -1,3 +1,4 @@
+import math
 import os
 import random
 import re
@@ -162,24 +163,74 @@ def compute_control_accuracy(predicted, gt, tolerance=0.05):
 def compute_mae(predicted, gt):
     return torch.mean(torch.abs(predicted - gt)).item()
 
+# def train(args, gt_controls, pred_controls, physics, gear) -> MVAdapt:
+#     print("Training Model")
+#     model = MVAdapt(args.dim0, args.dim1, args.dim2, args.dim3, args.physics_dim, args.max_gear_num, args.gear_dim)
+#     optimizer = optim.Adam(model.parameters(), lr=args.lr) # type: ignore
+#     loss_fn = Loss_fn
+    
+#     dataset = TensorDataset(gt_controls, pred_controls, physics, gear)
+#     data_loader = DataLoader(dataset, batch_size=args.batch_size, shuffle=True)
+    
+#     for epoch in range(args.epochs):
+#         model.train()
+#         total_loss = 0
+#         total_correct = 0
+#         total_samples = 0
+        
+#         # Wrap the DataLoader in a progress bar
+#         progress_bar = tqdm(data_loader, desc=f"Epoch {epoch + 1}")
+        
+#         for gt, pred, phys, g in progress_bar:
+#             optimizer.zero_grad()
+#             predicted = model(pred, phys, g)
+#             loss = loss_fn(predicted, gt)
+#             loss.backward()
+#             optimizer.step()
+#             total_loss += loss.item()
+            
+#             batch_accuracy = compute_control_accuracy(predicted, gt, tolerance=0.1)
+#             total_correct += batch_accuracy * gt.size(0)
+#             total_samples += gt.size(0)
+            
+#             # Update progress bar with loss information
+#             progress_bar.set_postfix(loss=loss.item(), accuracy=batch_accuracy)
+
+#         avg_loss = total_loss / len(data_loader)
+#         avg_accuracy = total_correct / total_samples
+#         wandb.log({"epoch": epoch + 1, "train_loss": avg_loss,  "train_accuracy": avg_accuracy})
+#         print(f"Epoch {epoch + 1}, Avg Loss: {avg_loss:.4f}, Total Loss: {total_loss:.4f}, Accuracy: {avg_accuracy:.4f}")
+
+#     if args.save_model is not None and args.save_model != "None":
+#         torch.save(model.state_dict(), args.save_model)
+#         print(f"Model saved to {args.save_model}")
+        
+#     return model
+
 def train(args, gt_controls, pred_controls, physics, gear) -> MVAdapt:
     print("Training Model")
     model = MVAdapt(args.dim0, args.dim1, args.dim2, args.dim3, args.physics_dim, args.max_gear_num, args.gear_dim)
-    optimizer = optim.Adam(model.parameters(), lr=args.lr) # type: ignore
+    optimizer = optim.Adam(model.parameters(), lr=args.lr)  # type: ignore
     loss_fn = Loss_fn
-    
+
     dataset = TensorDataset(gt_controls, pred_controls, physics, gear)
     data_loader = DataLoader(dataset, batch_size=args.batch_size, shuffle=True)
-    
+
+    # Simulated annealing parameters
+    initial_temperature = 100
+    cooling_rate = 0.9
+    temperature = initial_temperature
+    min_temperature = 1e-3
+
     for epoch in range(args.epochs):
         model.train()
         total_loss = 0
         total_correct = 0
         total_samples = 0
-        
+
         # Wrap the DataLoader in a progress bar
         progress_bar = tqdm(data_loader, desc=f"Epoch {epoch + 1}")
-        
+
         for gt, pred, phys, g in progress_bar:
             optimizer.zero_grad()
             predicted = model(pred, phys, g)
@@ -187,24 +238,54 @@ def train(args, gt_controls, pred_controls, physics, gear) -> MVAdapt:
             loss.backward()
             optimizer.step()
             total_loss += loss.item()
-            
+
             batch_accuracy = compute_control_accuracy(predicted, gt, tolerance=0.1)
             total_correct += batch_accuracy * gt.size(0)
             total_samples += gt.size(0)
-            
+
             # Update progress bar with loss information
             progress_bar.set_postfix(loss=loss.item(), accuracy=batch_accuracy)
 
         avg_loss = total_loss / len(data_loader)
         avg_accuracy = total_correct / total_samples
-        wandb.log({"epoch": epoch + 1, "train_loss": avg_loss,  "train_accuracy": avg_accuracy})
+        wandb.log({"epoch": epoch + 1, "train_loss": avg_loss, "train_accuracy": avg_accuracy})
         print(f"Epoch {epoch + 1}, Avg Loss: {avg_loss:.4f}, Total Loss: {total_loss:.4f}, Accuracy: {avg_accuracy:.4f}")
+
+        # Simulated annealing step
+        if temperature > min_temperature:
+            with torch.no_grad():
+                for param in model.parameters():
+                    # Save the current weights
+                    original_weights = param.clone()
+
+                    # Perturb weights with random noise
+                    noise = torch.randn_like(param) * (temperature / initial_temperature)
+                    param.add_(noise)
+
+                    # Compute the new loss
+                    perturbed_loss = 0
+                    for gt, pred, phys, g in data_loader:
+                        predicted = model(pred, phys, g)
+                        perturbed_loss += loss_fn(predicted, gt).item()
+
+                    # Acceptance probability
+                    delta_loss = perturbed_loss - total_loss
+                    acceptance_prob = torch.exp(torch.tensor(-delta_loss / temperature)) if delta_loss > 0 else torch.tensor(1.0)
+
+                    # Decide whether to accept or reject the perturbed weights
+                    if torch.rand(1).item() > acceptance_prob:
+                        param.copy_(original_weights)  # Reject the perturbation
+
+            # Cool down the temperature
+            temperature *= cooling_rate
+            print(f"Simulated Annealing: Temperature decreased to {temperature:.4f}")
 
     if args.save_model is not None and args.save_model != "None":
         torch.save(model.state_dict(), args.save_model)
         print(f"Model saved to {args.save_model}")
-        
+
     return model
+
 
 def validate(model, args, gt_controls_val, pred_controls_val, physics_val, gear_val) -> None:
     print("Validating Model")

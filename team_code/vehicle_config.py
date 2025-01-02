@@ -4,6 +4,7 @@ from physics_config import PhysicsConfig
 class VehicleConfig:
     def __init__(self):
         # fmt: off
+        # 2 wheels: 4, 10, 16, 17, 19, 34, 36
         self.physics_list = PhysicsConfig().physics_list
         self.config_list = [
             {   # 0
@@ -30,7 +31,7 @@ class VehicleConfig:
             "camera_pos": [-1.5, 0.0, 2.0],
             "physics": self.physics_list[3]
             },
-            {   # 4
+            {   # 4 # 2 wheels
             "vehicle_name": "vehicle.bh.crossbike",
             "vehicle_extent": [0.7436444163322449, 0.42962872982025146, 0.6382190585136414],
             "camera_pos": [0.0, 0.0, 2.0],
@@ -66,7 +67,7 @@ class VehicleConfig:
             "camera_pos": [-1.5, 0.0, 2.0],
             "physics": self.physics_list[9]
             },
-            {   # 10
+            {   # 10 # 2 wheels
             "vehicle_name": "vehicle.diamondback.century",
             "vehicle_extent": [0.8214218020439148, 0.18625812232494354, 0.7479714751243591],
             "camera_pos": [0.0, 0.0, 2.0],
@@ -102,13 +103,13 @@ class VehicleConfig:
             "camera_pos": [-1.5, 0.0, 2.0],
             "physics": self.physics_list[15]
             },
-            {   # 16
+            {   # 16 # 2 wheels
             "vehicle_name": "vehicle.gazelle.omafiets",
             "vehicle_extent": [0.9177202582359314, 0.0, 0.5856836438179016],
             "camera_pos": [0.0, 0.0, 2.0],
             "physics": self.physics_list[16]
             },
-            {   # 17
+            {   # 17 # 2 wheels
             "vehicle_name": "vehicle.harley-davidson.low_rider",
             "vehicle_extent": [1.1778701543807983, 0.38183942437171936, 0.6382853388786316],
             "camera_pos": [0.0, 0.0, 2.0],
@@ -120,7 +121,7 @@ class VehicleConfig:
             "camera_pos": [0.0, 0.0, 2.0],
             "physics": self.physics_list[18]
             },
-            {   # 19
+            {   # 19 # 2 wheels
             "vehicle_name": "vehicle.kawasaki.ninja",
             "vehicle_extent": [1.0166761875152588, 0.4012899398803711, 0.5996325016021729],
             "camera_pos": [-1.5, 0.0, 2.0],
@@ -210,7 +211,7 @@ class VehicleConfig:
             "camera_pos": [-1.5, 0.0, 2.0],
             "physics": self.physics_list[33]
             },
-            {   # 34
+            {   # 34 # 2 wheels
             "vehicle_name": "vehicle.vespa.zx125",
             "vehicle_extent": [0.9023334980010986, 0.0, 0.6178141832351685],
             "camera_pos": [0.0, 0.0, 2.0],
@@ -222,7 +223,7 @@ class VehicleConfig:
             "camera_pos": [1.5, 0.0, 2.0],
             "physics": self.physics_list[35]
             },
-            {   # 36
+            {   # 36 # 2 wheels
             "vehicle_name": "vehicle.yamaha.yzf",
             "vehicle_extent": [1.1047229766845703, 0.43351709842681885, 0.6255727410316467],
             "camera_pos": [0.0, 0.0, 2.0],

@@ -18,8 +18,8 @@ export DEVICE="cuda:0"
 export PHYSICS_DIM=18
 export MAX_GEAR_NUM=24
 export GEAR_DIM=4
-export EPOCHS=1000
-export LR=0.00001
+export EPOCHS=100
+export LR=0.001
 export BATCH_SIZE=256
 export VERBOSE=true
 

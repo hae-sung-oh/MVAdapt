@@ -148,7 +148,7 @@ dataset/*
 dataset_mkz/*
 dataset*
 *.pickle
-scripts/set_environment.sh
+# scripts/set_environment.sh
 logs/
 pyrightconfig.json
 .importance_df.json

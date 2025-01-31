@@ -1,5 +1,7 @@
 #!/bin/bash
 
+PORT=${1:-2000}
+
 interval=5  
 threshold=20
 carla_threshold=10
@@ -9,9 +11,9 @@ declare total
 
 while true; do
     total=0
-    pid=$(ps aux | grep leaderboard_evaluator | grep -v grep | awk '{print $2}' | head -n 1)
-    carla=$(ps aux | grep CarlaUE4.sh | grep -v grep | awk '{print $2}' | head -n 1)
-    status=$(ps aux | grep leaderboard_evaluator | grep -v grep | awk '{print $8}' | head -n 1)
+    pid=$(ps aux | grep leaderboard_evaluator | grep port=${PORT} | grep -v grep | awk '{print $2}' | head -n 1)
+    carla=$(ps aux | grep CarlaUE4.sh | grep world-port=${PORT} | grep -v grep | awk '{print $2}' | head -n 1)
+    status=$(ps aux | grep leaderboard_evaluator | grep port=${PORT} | grep -v grep | awk '{print $8}' | head -n 1)
 
     state=$(echo $status | cut -c 1)
 

@@ -1,8 +1,8 @@
 #!/bin/bash
 
 export HOST="127.0.0.1"
-export PORT="2000"
-export TRAFFIC_MANAGER_PORT="2500"
+# export PORT="2000"
+# export TRAFFIC_MANAGER_PORT="2500"
 export TRAFFIC_MANAGER_SEED="0"
 export DEBUG=0
 export TIMEOUT="6000.0"

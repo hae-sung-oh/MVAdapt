@@ -176,11 +176,12 @@ class RouteScenario(BasicScenario):
 
     category = "RouteScenario"
 
-    def __init__(self, world, config, debug_mode=0, criteria_enable=True, vehicle_index=0):
+    def __init__(self, world, config, vehicle_config, debug_mode=0, criteria_enable=True, vehicle_index=0):
         """
         Setup all relevant parameters and create scenarios along route
         """
         self.config = config
+        self.vehicle_config = vehicle_config
         self.route = None
         self.sampled_scenarios_definitions = None
         self.index = vehicle_index
@@ -236,9 +237,10 @@ class RouteScenario(BasicScenario):
         elevate_transform.location.z += 0.5
 
         # ego_vehicle = CarlaDataProvider.request_new_actor("vehicle.lincoln.mkz_2017", elevate_transform, rolename="hero")
-        vehicle_config = VehicleConfig()
-        ego_vehicle = CarlaDataProvider.request_new_actor(vehicle_config.config_list[self.index]["vehicle_name"], elevate_transform, rolename="hero")
-
+        ego_vehicle = CarlaDataProvider.request_new_actor(self.vehicle_config.config_list[self.index]["vehicle_name"], elevate_transform, rolename="hero")
+        if os.environ.get("RANDOM_PHYSICS", 0):
+            self.vehicle_config.sample_random_physics(ego_vehicle, self.index)
+        
         spectator = CarlaDataProvider.get_world().get_spectator()
         ego_trans = ego_vehicle.get_transform()
         spectator.set_transform(carla.Transform(ego_trans.location + carla.Location(z=50), carla.Rotation(pitch=-90)))
@@ -427,17 +429,29 @@ class RouteScenario(BasicScenario):
         # Create the background activity of the route
         if os.getenv("BENCHMARK") == "longest6":
             # amount = 500  # use all spawn points
+            # town_amount = {
+            #     "Town01": 120,
+            #     "Town02": 100,
+            #     "Town03": 120,
+            #     "Town04": 200,
+            #     "Town05": 120,
+            #     "Town06": 150,
+            #     "Town07": 110,
+            #     "Town08": 180,
+            #     "Town09": 300,
+            #     "Town10HD": 120,
+            # }
             town_amount = {
-                "Town01": 120,
-                "Town02": 100,
-                "Town03": 120,
-                "Town04": 200,
-                "Town05": 120,
-                "Town06": 150,
-                "Town07": 110,
-                "Town08": 180,
-                "Town09": 300,
-                "Town10HD": 120,
+                "Town01": 60,
+                "Town02": 50,
+                "Town03": 60,
+                "Town04": 90,
+                "Town05": 60,
+                "Town06": 70,
+                "Town07": 60,
+                "Town08": 90,
+                "Town09": 150,
+                "Town10HD": 60,
             }
             amount = town_amount[config.town] if config.town in town_amount else 0
         elif os.getenv("BENCHMARK") == "empty":

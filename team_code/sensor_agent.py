@@ -20,10 +20,10 @@ from leaderboard.autoagents import autonomous_agent
 from model import LidarCenterNet
 from config import GlobalConfig
 from data import CARLA_Data
-from mvadapt import MVAdapt
+from mvadapt_v1 import MVAdapt
 from nav_planner import RoutePlanner
 from nav_planner import extrapolate_waypoint_route
-import mvadapt_train as m_t
+from mvadapt_data import MVAdaptDataset
 
 from filterpy.kalman import MerweScaledSigmaPoints
 from filterpy.kalman import UnscentedKalmanFilter as UKF
@@ -53,7 +53,7 @@ class SensorAgent(autonomous_agent.AutonomousAgent):
     Main class that runs the agents with the run_step function
     """
 
-  def setup(self, path_to_conf_file, route_index=None, verbose=True):
+  def setup(self, path_to_conf_file, route_index=None, vehicle_config=None, verbose=True):
     """Sets up the agent. route_index is for logging purposes"""
 
     torch.cuda.empty_cache()
@@ -62,6 +62,7 @@ class SensorAgent(autonomous_agent.AutonomousAgent):
     self.step = -1
     self.initialized = False
     self.device = torch.device('cuda:0')
+    self.vehicle_config = vehicle_config
 
     # Load the config saved during training
     with open(os.path.join(path_to_conf_file, 'config.pickle'), 'rb') as args_file:
@@ -72,6 +73,8 @@ class SensorAgent(autonomous_agent.AutonomousAgent):
     self.config = GlobalConfig(self.vehicle_index)
     # Overwrite all properties that were set in the saved config.
     self.config.__dict__.update(loaded_config.__dict__)
+    self.config.update_vehicle(self.vehicle_index)
+    self.vehicle_config.update_config(self.config)
 
     # For models supporting different output modalities we select which one to use here.
     # 0: Waypoints
@@ -198,14 +201,24 @@ class SensorAgent(autonomous_agent.AutonomousAgent):
     self.adapt = os.getenv('ADAPT', 0)
     if self.adapt:
       print('MVAdapt is on.')
-      dim0, dim1, dim2, dim3 = int(os.getenv('DIM0', 32)), int(os.getenv('DIM1', 32)), int(os.getenv('DIM2', 64)), int(os.getenv('DIM3', 64))
-      self.adaptation_module = MVAdapt(dim0, dim1, dim2, dim3)
+      self.mvadapt = MVAdapt(self.config)
+      self.mvdata = MVAdaptDataset(self.config, self.vehicle_config)
       try:
-        self.adaptation_module.load(os.getenv('ADAPT_PATH'))
+        self.mvadapt.load(os.getenv('ADAPT_PATH'))
       except Exception as e:
         print(f'Could not load MVAdapt model. Using random weights: {e}')
-      self.physics_prop, self.gear_prop = m_t.load_physics_data(self.vehicle_index)
-
+      self.physics_prop, self.gear_prop = self.mvdata.load_physics_data(self.vehicle_index)
+      
+  def update_physics(self):
+    print('Updating physics properties')
+    try:
+      with open(str(os.getenv('RANDOM_PHYSICS_PATH')), 'wb') as f:
+        pickle.dump(self.vehicle_config.config_list[self.vehicle_index], f)
+      print(f'Physics properties saved: {str(os.getenv("RANDOM_PHYSICS_PATH"))}')
+    except Exception as e:
+      print(f'Could not save physics properties: {e}')
+    self.physics_prop, self.gear_prop = self.mvdata.load_physics_data(self.vehicle_index)
+    
   def _init(self):
     # During setup() not everything is available yet, so this _init is a second setup in run_step()
     # Privileged map access for logging and visualizations. Turned off during normal evaluation.
@@ -349,6 +362,8 @@ class SensorAgent(autonomous_agent.AutonomousAgent):
     result['target_point'] = ego_target_point
 
     result['speed'] = torch.FloatTensor([speed]).to(self.device, dtype=torch.float32)
+    
+    result['waypoint'] = waypoint_route
 
     if self.save_path is not None:
       waypoint_route = self._waypoint_planner.run_step(result['gps'])
@@ -461,6 +476,7 @@ class SensorAgent(autonomous_agent.AutonomousAgent):
     pred_checkpoints = []
     bounding_boxes = []
     wp_selected = None
+    wp_features = []
     for i in range(self.model_count):
       if self.config.backbone in ('transFuser', 'aim', 'bev_encoder'):
         pred_wp, \
@@ -472,7 +488,8 @@ class SensorAgent(autonomous_agent.AutonomousAgent):
         pred_bb_features,\
         attention_weights,\
         pred_wp_1,\
-        selected_path = self.nets[i].forward(
+        selected_path,\
+        joined_wp_features = self.nets[i].forward(
           rgb=tick_data['rgb'],
           lidar_bev=lidar_bev,
           target_point=tick_data['target_point'],
@@ -502,6 +519,7 @@ class SensorAgent(autonomous_agent.AutonomousAgent):
         pred_checkpoints.append(pred_checkpoint[0][1])
 
       bounding_boxes.append(pred_bounding_box)
+      wp_features.append(joined_wp_features)
 
     # Average the predictions from ensembles
     if self.config.detect_boxes and (compute_debug_output or self.config.backbone in ('aim') or
@@ -519,6 +537,16 @@ class SensorAgent(autonomous_agent.AutonomousAgent):
     if self.config.tp_attention:
       self.tp_attention_buffer.append(attention_weights[2])
 
+    if self.adapt:
+      pred_wps = []
+      for i in range(self.model_count):
+        pred_wps.append(self.mvadapt.inference(
+          x=wp_features[i],
+          target_point=tick_data['target_point'],
+          physics_params=torch.tensor(self.physics_prop, dtype=torch.float32).to(self.device).unsqueeze(0),
+          gear_params=torch.tensor(self.gear_prop, dtype=torch.float32).to(self.device).unsqueeze(0)
+        ).reshape(-1, 2).unsqueeze(0))
+      
     # Visualize the output of the last model
     if compute_debug_output:
       if self.config.use_controller_input_prediction:
@@ -540,15 +568,11 @@ class SensorAgent(autonomous_agent.AutonomousAgent):
                                    pred_bb=bbs_vehicle_coordinate_system,
                                    gt_speed=gt_velocity,
                                    gt_wp=pred_wp_1,
+                                   mv_wp=pred_wps[0],
                                    wp_selected=wp_selected)
 
     if self.config.use_wp_gru:
       self.pred_wp = torch.stack(pred_wps, dim=0).mean(dim=0)
-
-    if self.adapt:
-      self.pred_wp = self.pred_wp.flatten()
-      self.pred_wp = self.adaptation_module.forward(self.pred_wp, self.physics_prop, self.gear_prop)[0]
-      self.pred_wp = self.pred_wp.reshape(1, -1, 2)
     
     if self.config.use_controller_input_prediction:
       pred_target_speed = torch.stack(pred_target_speeds, dim=0).mean(dim=0)
@@ -639,12 +663,6 @@ class SensorAgent(autonomous_agent.AutonomousAgent):
 
     # CARLA will not let the car drive in the initial frames.
     # We set the action to brake so that the filter does not get confused.
-    # if self.adapt:
-    #   print(f"IN: {control.throttle}, {control.steer}, {control.brake}")
-    #   control = torch.tensor([control.steer, control.throttle, control.brake], dtype=torch.float32, device=self.device)
-    #   control = self.adaptation_module.forward(control, self.physics_prop, self.gear_prop)[0]
-    #   control = carla.VehicleControl(throttle=float(control[0]), steer=float(control[1]), brake=float(float(control[2]) > 0.5))
-    #   print(f"OUT: {control.throttle}, {control.steer}, {control.brake}\n")
       
     if self.step < self.config.inital_frames_delay:
       self.control = carla.VehicleControl(0.0, 0.0, 1.0)

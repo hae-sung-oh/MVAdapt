@@ -24,6 +24,8 @@ import numpy as np
 import sys
 import json
 
+from wandb import agent
+
 import carla
 import signal
 
@@ -37,6 +39,8 @@ from leaderboard.envs.sensor_interface import SensorConfigurationInvalid
 from leaderboard.autoagents.agent_wrapper_local import AgentWrapper, AgentError
 from leaderboard.utils.statistics_manager_local import StatisticsManager
 from leaderboard.utils.route_indexer import RouteIndexer
+
+from team_code.vehicle_config import VehicleConfig
 
 import pathlib
 
@@ -75,6 +79,7 @@ class LeaderboardEvaluator(object):
         self.sensors = None
         self.sensor_icons = []
         self._vehicle_lights = carla.VehicleLightState.Position | carla.VehicleLightState.LowBeam
+        self.vehicle_config = VehicleConfig()
 
         # First of all, we need to create the client that will send the requests
         # to the simulator. Here we'll assume the simulator is accepting
@@ -273,6 +278,8 @@ class LeaderboardEvaluator(object):
             agent_class_name = getattr(self.module_agent, "get_entry_point")()
             if int(os.environ.get("DATAGEN", 0)) == 1:
                 self.agent_instance = getattr(self.module_agent, agent_class_name)(args.agent_config, config.index)
+            elif agent_class_name == "SensorAgent":
+                self.agent_instance = getattr(self.module_agent, agent_class_name)(args.agent_config, route_date_string, vehicle_config=self.vehicle_config)
             else:
                 self.agent_instance = getattr(self.module_agent, agent_class_name)(args.agent_config, route_date_string)
             config.agent = self.agent_instance
@@ -330,8 +337,11 @@ class LeaderboardEvaluator(object):
         try:
             self._load_and_wait_for_world(args, config.town, config.ego_vehicles)
             self._prepare_ego_vehicles(config.ego_vehicles, False)
-            scenario = RouteScenario(world=self.world, config=config, debug_mode=args.debug, vehicle_index=args.index)
+            scenario = RouteScenario(world=self.world, vehicle_config=self.vehicle_config, config=config, debug_mode=args.debug, vehicle_index=args.index)
             self.statistics_manager.set_scenario(scenario.scenario)
+            
+            if os.environ.get("RANDOM_PHYSICS", 0):
+                self.agent_instance.update_physics()
 
             # Night mode
             if config.weather.sun_altitude_angle < 0.0:

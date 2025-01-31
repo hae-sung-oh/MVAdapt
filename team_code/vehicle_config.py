@@ -1,8 +1,10 @@
+import random
 from physics_config import PhysicsConfig
-
+import carla
 
 class VehicleConfig:
-    def __init__(self):
+    def __init__(self, config=None):
+        self.config = config
         # fmt: off
         # 2 wheels: 4, 10, 16, 17, 19, 34, 36
         self.physics_list = PhysicsConfig().physics_list
@@ -230,3 +232,109 @@ class VehicleConfig:
             "physics": self.physics_list[36]
             }
         ]
+    
+    def update_config(self, config):
+        self.config = config
+        
+    def sample_random_physics(self, actor, index):
+        print("Sample random physics")
+        assert actor.type_id == self.config_list[index]["vehicle_name"], "Actor type_id does not match"
+
+        physics = actor.get_physics_control()
+
+        physics.max_rpm = random.uniform(self.config.min_max_rpm, self.config.max_max_rpm)
+        physics.mass = random.uniform(self.config.min_mass, self.config.max_mass)  
+        physics.center_of_mass = carla.Location(x=random.uniform(-1, 1), y=0.0, z=random.uniform(-1, 1)) 
+
+        max_torque = min(random.randint(1, 4), len(physics.torque_curve))
+        physics.torque_curve = [
+            carla.Vector2D(
+                x=physics.torque_curve[i].x * random.uniform(0.8, 1.2), 
+                y=physics.torque_curve[i].y * random.uniform(0.8, 1.2)) for i in range(max_torque)
+            ]
+
+        for wheel in physics.wheels:
+            wheel.radius = random.uniform(20, 50)
+
+        max_gear = min(random.randint(1, self.config.max_gear_num), len(physics.forward_gears))
+        physics.forward_gears = [
+            carla.GearPhysicsControl(
+                ratio=physics.forward_gears[i].ratio * random.uniform(0.8, 1.2),
+                down_ratio=physics.forward_gears[i].down_ratio * random.uniform(0.8, 1.2),
+                up_ratio=physics.forward_gears[i].up_ratio * random.uniform(0.8, 1.2)
+            ) for i in range(max_gear)
+        ]
+        
+        actor.apply_physics_control(physics)
+
+        self.config_list[index] = {
+                "vehicle_name": actor.type_id,
+                "vehicle_extent": self.config_list[index]["vehicle_extent"],
+                "camera_pos": self.config_list[index]["camera_pos"],
+                "physics": self.physics2dict(physics)
+            }
+
+    def physics2dict(self, physics):
+        return {
+            "torque_curve": [(p.x, p.y) for p in physics.torque_curve],
+            "max_rpm": physics.max_rpm,
+            "moi": physics.moi,
+            "damping_rate_full_throttle": physics.damping_rate_full_throttle,
+            "damping_rate_zero_throttle_clutch_engaged": physics.damping_rate_zero_throttle_clutch_engaged,
+            "damping_rate_zero_throttle_clutch_disengaged": physics.damping_rate_zero_throttle_clutch_disengaged,
+            "use_gear_autobox": physics.use_gear_autobox,
+            "gear_switch_time": physics.gear_switch_time,
+            "clutch_strength": physics.clutch_strength,
+            "final_ratio": physics.final_ratio,
+            "forward_gears": [
+                {"ratio": g.ratio, "down_ratio": g.down_ratio, "up_ratio": g.up_ratio} for g in physics.forward_gears
+            ],
+            "mass": physics.mass,
+            "drag_coefficient": physics.drag_coefficient,
+            "center_of_mass": (physics.center_of_mass.x, physics.center_of_mass.y, physics.center_of_mass.z),
+            "steering_curve": [(p.x, p.y) for p in physics.steering_curve],
+            "wheels": [
+                {
+                    "tire_friction": w.tire_friction,
+                    "damping_rate": w.damping_rate,
+                    "max_steer_angle": w.max_steer_angle,
+                    "radius": w.radius,
+                    "position": (w.position.x, w.position.y, w.position.z),
+                    "max_brake_torque": w.max_brake_torque,
+                    "max_handbrake_torque": w.max_handbrake_torque,
+                } for w in physics.wheels
+            ]
+        }
+
+    def dict2physics(self, dict):
+        physics = carla.VehiclePhysicsControl()
+        physics.torque_curve = [carla.Vector2D(x=p[0], y=p[1]) for p in dict["torque_curve"]]
+        physics.max_rpm = dict["max_rpm"]
+        physics.moi = dict["moi"]
+        physics.damping_rate_full_throttle = dict["damping_rate_full_throttle"]
+        physics.damping_rate_zero_throttle_clutch_engaged = dict["damping_rate_zero_throttle_clutch_engaged"]
+        physics.damping_rate_zero_throttle_clutch_disengaged = dict["damping_rate_zero_throttle_clutch_disengaged"]
+        physics.use_gear_autobox = dict["use_gear_autobox"]
+        physics.gear_switch_time = dict["gear_switch_time"]
+        physics.clutch_strength = dict["clutch_strength"]
+        physics.final_ratio = dict["final_ratio"]
+        physics.forward_gears = [
+            carla.GearPhysicsControl(ratio=g["ratio"], down_ratio=g["down_ratio"], up_ratio=g["up_ratio"]) for g in dict["forward_gears"]
+        ]
+        physics.mass = dict["mass"]
+        physics.drag_coefficient = dict["drag_coefficient"]
+        physics.center_of_mass = carla.Location(dict["center_of_mass"][0], dict["center_of_mass"][1], dict["center_of_mass"][2])
+        physics.steering_curve = [carla.Vector2D(x=p[0], y=p[1]) for p in dict["steering_curve"]]
+        physics.wheels = [
+            carla.WheelPhysicsControl(
+                tire_friction=w["tire_friction"],
+                damping_rate=w["damping_rate"],
+                max_steer_angle=w["max_steer_angle"],
+                radius=w["radius"],
+                position=carla.Vector3D(w["position"][0], w["position"][1], w["position"][2]),
+                max_brake_torque=w["max_brake_torque"],
+                max_handbrake_torque=w["max_handbrake_torque"]
+            ) for w in dict["wheels"]
+        ]
+        return physics
+

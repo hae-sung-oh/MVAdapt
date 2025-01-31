@@ -275,7 +275,7 @@ class CARLA_Data(Dataset):  # pylint: disable=locally-disabled, invalid-name
     measurements = self.measurements[index]
     sample_start = self.sample_start[index]
     control = self.control[index]
-
+    
     if self.config.lidar_seq_len > 1:
       temporal_lidars = self.temporal_lidars[index]
       temporal_measurements = self.temporal_measurements[index]
@@ -546,6 +546,11 @@ class CARLA_Data(Dataset):  # pylint: disable=locally-disabled, invalid-name
                                    interpolation=cv2.INTER_LINEAR)
       # The transpose change the image into pytorch (C,H,W) format
       data['rgb'] = np.transpose(processed_image, (2, 0, 1))
+      rgb_save_path = self.images[index].astype(str)[0].replace('rgb', 'rgb_npy').replace('.jpg', '.npy')
+      if not os.path.exists(os.path.dirname(rgb_save_path)):
+        os.makedirs(os.path.dirname(rgb_save_path), exist_ok=True)
+      np.save(rgb_save_path, data['rgb'])
+      data["rgb_path"] = rgb_save_path
 
     # need to concatenate seq data here and align to the same coordinate
     lidars = []
@@ -668,6 +673,11 @@ class CARLA_Data(Dataset):  # pylint: disable=locally-disabled, invalid-name
     if not self.config.use_plant:
       lidar_bev = self.lidar_augmenter_func(image=np.transpose(lidar_bev, (1, 2, 0)))
       data['lidar'] = np.transpose(lidar_bev, (2, 0, 1))
+      lidar_save_path = self.lidars[index].astype(str)[0].replace('lidar', 'lidar_npy').replace('.laz', '.npy')
+      if not os.path.exists(os.path.dirname(lidar_save_path)):
+        os.makedirs(os.path.dirname(lidar_save_path), exist_ok=True)
+      np.save(lidar_save_path, data['lidar'])
+      data["lidar_path"] = lidar_save_path
 
     if self.config.detect_boxes or self.config.use_plant:
       data['bounding_boxes'] = bounding_boxes_padded

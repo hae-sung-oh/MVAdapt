@@ -95,8 +95,8 @@ class GlobalConfig:
     # -----------------------------------------------------------------------------
     self.max_mass = 15000.0
     self.min_mass = 1.0
-    self.max_extent = 20.0
-    self.min_extent = 0.1
+    self.max_extent = 3.0
+    self.min_extent = 0.5
     self.max_max_rpm = 20000.0
     self.min_max_rpm = 10.0
     self.max_torque_curve = 10000.0
@@ -105,8 +105,16 @@ class GlobalConfig:
     self.min_radius = 1.0
     self.max_wheelbase = 500.0
     self.min_wheelbase = 1.0
-    self.max_gear_num = 8
+    self.max_gear_num = 9
     self.max_torque_num = 4
+    
+    # -----------------------------------------------------------------------------
+    # MVAdapt config
+    # -----------------------------------------------------------------------------
+    self.physics_dim = 18
+    self.gear_length = 27
+    self.mvadapt_latent_dim = 16
+    self.mvadapt_gear_dim = 4
 
     # -----------------------------------------------------------------------------
     # Sensor config
@@ -614,6 +622,8 @@ class GlobalConfig:
     if verbose:
       print("Train folders:")
     for town in self.train_towns:
+      if os.path.isfile(os.path.join(self.root_dir, town)):
+        continue
       root_files = os.listdir(os.path.join(self.root_dir, town))  # Town folders
       for file in root_files:
         # Only load as many repetitions as specified
@@ -633,6 +643,8 @@ class GlobalConfig:
     if verbose:  
       print("Test folders:")
     for town in self.val_towns:
+      if os.path.isfile(os.path.join(self.root_dir, town)):
+        continue
       root_files = os.listdir(os.path.join(self.root_dir, town))
       for file in root_files:
         repetition = int(re.search('Repetition(\\d+)', file).group(1))

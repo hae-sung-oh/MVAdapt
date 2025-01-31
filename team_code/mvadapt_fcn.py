@@ -62,11 +62,11 @@ class MVAdapt(nn.Module):
             gear_dim=gear_dim
         ).to(device)
 
-    def forward(self, control_input, physics_params, gear_params):
-        if control_input.dim() == 1:
-            control_input = control_input.unsqueeze(0)
+    def forward(self, waypoint_input, physics_params, gear_params):
+        if waypoint_input.dim() == 1:
+            waypoint_input = waypoint_input.unsqueeze(0)
 
-        batch_size = control_input.size(0)
+        batch_size = waypoint_input.size(0)
         
         weights = self.physics_encoder(physics_params, gear_params).to(self.device)
         
@@ -93,7 +93,7 @@ class MVAdapt(nn.Module):
         
         outputs = []
         for i in range(batch_size):
-            x = torch.nn.functional.linear(control_input[i], weights0[i], biases0[i])
+            x = torch.nn.functional.linear(waypoint_input[i], weights0[i], biases0[i])
             x = torch.relu(x)
             x = torch.nn.functional.linear(x, weights1[i], biases1[i])
             x = torch.relu(x)

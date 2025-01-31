@@ -330,8 +330,10 @@ class LidarCenterNet(nn.Module):
             pred_wp_1 = self.wp_decoder_1(joined_wp_features[:, num_wp:2 * num_wp], target_point)
             selected_path = self.select_wps(joined_wp_features[:, 2 * num_wp])
           else:
+          #######################################################################################
             joined_wp_features = self.join(self.wp_query.repeat(bs, 1, 1), fused_features)
             pred_wp = self.wp_decoder(joined_wp_features, target_point)
+          #######################################################################################
         if self.config.use_controller_input_prediction:
           if self.config.tp_attention:
             tp_token = self.tp_encoder(target_point)
@@ -389,7 +391,7 @@ class LidarCenterNet(nn.Module):
       pred_bounding_box = self.head(bev_feature_grid)
 
     return pred_wp, pred_target_speed, pred_checkpoint, pred_semantic, pred_bev_semantic, pred_depth, \
-      pred_bounding_box, attention_weights, pred_wp_1, selected_path
+      pred_bounding_box, attention_weights, pred_wp_1, selected_path, joined_wp_features # fused_features
 
   def compute_loss(self, pred_wp, pred_target_speed, pred_checkpoint, pred_semantic, pred_bev_semantic, pred_depth,
                    pred_bounding_box, pred_wp_1, selected_path, waypoint_label, target_speed_label, checkpoint_label,
@@ -678,6 +680,7 @@ class LidarCenterNet(nn.Module):
       pred_speed=None,
       pred_bb=None,
       gt_wp=None,
+      mv_wp=None,
       gt_bbs=None,
       gt_speed=None,
       gt_bev_semantic=None,
@@ -749,7 +752,7 @@ class LidarCenterNet(nn.Module):
     # Draw wps
     # Red ground truth
     if gt_wp is not None:
-      gt_wp_color = (255, 255, 0)
+      gt_wp_color = (0, 255, 0)
       for wp in gt_wp.detach().cpu().numpy()[0]:
         wp_x = wp[0] * loc_pixels_per_meter + origin[0]
         wp_y = wp[1] * loc_pixels_per_meter + origin[1]
@@ -778,6 +781,19 @@ class LidarCenterNet(nn.Module):
                    radius=8,
                    lineType=cv2.LINE_AA,
                    color=(0, 0, int(color_weight * 255)),
+                   thickness=-1)
+        
+    if mv_wp is not None:
+      pred_wps = mv_wp.detach().cpu().numpy()[0]
+      num_wp = len(pred_wps)
+      for idx, wp in enumerate(pred_wps):
+        color_weight = 0.5 + 0.5 * float(idx) / num_wp
+        wp_x = wp[0] * loc_pixels_per_meter + origin[0]
+        wp_y = wp[1] * loc_pixels_per_meter + origin[1]
+        cv2.circle(images_lidar, (int(wp_x), int(wp_y)),
+                   radius=4,
+                   lineType=cv2.LINE_AA,
+                   color=(255, 154, 212),
                    thickness=-1)
 
     # Draw target points
@@ -812,6 +828,12 @@ class LidarCenterNet(nn.Module):
         images_lidar = t_u.draw_box(images_lidar, box, color=(0, 255, 255), pixel_per_meter=loc_pixels_per_meter)
 
     images_lidar = np.rot90(images_lidar, k=1)
+    images_lidar = np.ascontiguousarray(images_lidar, dtype=np.uint8)
+    h, _, _ = images_lidar.shape
+    cv2.putText(images_lidar, 'TARGET', (10, h-130), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (255, 0, 0), 3, cv2.LINE_AA)
+    cv2.putText(images_lidar, 'GT_WP', (10, h-90), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 255, 0), 3, cv2.LINE_AA)
+    cv2.putText(images_lidar, 'BS_WP', (10, h-50), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 0, 255), 3, cv2.LINE_AA)
+    cv2.putText(images_lidar, 'MV_WP', (10, h-10), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (255, 154, 212), 3, cv2.LINE_AA)
 
     rgb_image = rgb[0].permute(1, 2, 0).detach().cpu().numpy()
 
@@ -844,7 +866,7 @@ class GRUWaypointsPredictorInterFuser(nn.Module):
   hidden state.
   """
 
-  def __init__(self, input_dim, waypoints, hidden_size, target_point_size):
+  def __init__(self, input_dim, waypoints, hidden_size, target_point_size): # 256, 8, 64, 2
     super().__init__()
     self.gru = torch.nn.GRU(input_size=input_dim, hidden_size=hidden_size, batch_first=True)
     if target_point_size > 0:

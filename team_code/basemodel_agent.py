@@ -122,7 +122,7 @@ class BasemodelAgent(autonomous_agent.AutonomousAgent):
           # Model was trained with Sync. Batch Norm.
           # Need to convert it otherwise parameters will load wrong.
           net = torch.nn.SyncBatchNorm.convert_sync_batchnorm(net)
-        state_dict = torch.load(os.path.join(path_to_conf_file, file), map_location=self.device)
+        state_dict = torch.load(os.path.join(path_to_conf_file, file), map_location=self.device, weights_only=True)
 
         net.load_state_dict(state_dict, strict=False)
         net.cuda(device=self.device)

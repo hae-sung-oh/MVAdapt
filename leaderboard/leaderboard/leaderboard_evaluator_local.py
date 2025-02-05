@@ -255,7 +255,7 @@ class LeaderboardEvaluator(object):
         crash_message = ""
         entry_status = "Started"
 
-        print("\n\033[1m========= Preparing {} (repetition {}) =========".format(config.name, config.repetition_index), flush=True)
+        print("\n\033[1m========= Preparing {} (repetition {}, index {}) =========".format(config.name, config.repetition_index, args.index), flush=True)
         print("> Setting up the agent\033[0m")
 
         # Prepare the statistics of the route

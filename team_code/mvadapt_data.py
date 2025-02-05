@@ -250,20 +250,21 @@ class MVAdaptDataset(Dataset):
                 torch.cuda.empty_cache()
                 del result
                 
-    def sample_data_per_vehicle(self, num_samples):
+    def sample_data_per_vehicle(self, num_samples, exclude=[]):
         v2index = defaultdict(list)
         for idx, v_index in enumerate(self.vehicle_indices):
-            v2index[v_index].append(idx)
+            if v_index not in exclude:
+                v2index[v_index].append(idx)
         
-        indices = []
+        sampled_indices = []
         for v_index, indices in v2index.items():
             if len(indices) > num_samples:
-                indices.extend(random.sample(indices, num_samples))
+                sampled_indices.extend(random.sample(indices, num_samples))
             else:
-                indices.extend(indices) 
+                sampled_indices.extend(indices) 
         
         dataset = MVAdaptDataset(self.config)
-        for idx in indices:
+        for idx in sampled_indices:
             dataset.vehicle_indices.append(self.vehicle_indices[idx])
             dataset.gt_waypoints.append(self.gt_waypoints[idx])
             dataset.bs_waypoints.append(self.bs_waypoints[idx])

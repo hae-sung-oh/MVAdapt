@@ -49,7 +49,7 @@ class BasemodelAgent(autonomous_agent.AutonomousAgent):
     Main class that runs the agents with the run_step function
     """
 
-  def setup(self, path_to_conf_file, route_index=None, verbose=True):
+  def setup(self, path_to_conf_file, route_index=None, vehicle_config=None, verbose=True):
     """Sets up the agent. route_index is for logging purposes"""
 
     torch.cuda.empty_cache()

@@ -20,7 +20,7 @@ from leaderboard.autoagents import autonomous_agent
 from model import LidarCenterNet
 from config import GlobalConfig
 from data import CARLA_Data
-from mvadapt_v1 import MVAdapt
+from mvadapt_v3 import MVAdapt
 from nav_planner import RoutePlanner
 from nav_planner import extrapolate_waypoint_route
 from mvadapt_data import MVAdaptDataset
@@ -198,11 +198,11 @@ class SensorAgent(autonomous_agent.AutonomousAgent):
     self.stuck_started = False  # Detects the start of a stuck state
     self.was_stuck = False  # Tracks if the agent was stuck in the last step
     
+    self.mvdata = MVAdaptDataset(self.config, self.vehicle_config)
     self.adapt = os.getenv('ADAPT', 0)
     if self.adapt:
       print('MVAdapt is on.')
       self.mvadapt = MVAdapt(self.config)
-      self.mvdata = MVAdaptDataset(self.config, self.vehicle_config)
       try:
         self.mvadapt.load(os.getenv('ADAPT_PATH'))
       except Exception as e:

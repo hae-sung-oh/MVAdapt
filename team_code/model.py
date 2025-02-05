@@ -791,7 +791,7 @@ class LidarCenterNet(nn.Module):
         wp_x = wp[0] * loc_pixels_per_meter + origin[0]
         wp_y = wp[1] * loc_pixels_per_meter + origin[1]
         cv2.circle(images_lidar, (int(wp_x), int(wp_y)),
-                   radius=4,
+                   radius=6,
                    lineType=cv2.LINE_AA,
                    color=(255, 154, 212),
                    thickness=-1)

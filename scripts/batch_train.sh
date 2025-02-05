@@ -1,6 +1,6 @@
 #!/bin/bash
 
-VERSION_LIST=("v1" "v2")
+VERSION_LIST=("v3")
 REPEAT=3
 
 for _VERSION in "${VERSION_LIST[@]}"; do
@@ -10,5 +10,4 @@ for _VERSION in "${VERSION_LIST[@]}"; do
         echo "Training model for version $VERSION"
         ./train_mvadapt.sh
     done
-    
 done

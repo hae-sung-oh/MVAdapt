@@ -18,10 +18,10 @@ export PROCESS_BATCH=64
 export VERBOSE=true
 export DEBUG=true
 
-export LOAD_DATA="${WORK_DIR}/dataset/mvadapt_dataset"
+export LOAD_DATA="${WORK_DIR}/dataset/mvadapt_dataset_sampled_6x25x"
 export SAVE_DATA="None"
 # export LOAD_DATA="None"
-# export SAVE_DATA="${WORK_DIR}/dataset/mvadapt_dataset"
+# export SAVE_DATA="${WORK_DIR}/dataset/mvadapt_dataset_250204"
 
 # export LOAD_MODEL="${WORK_DIR}/pretrained_models/mvadapt.pth"
 # export SAVE_MODEL="None"

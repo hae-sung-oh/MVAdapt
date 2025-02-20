@@ -295,6 +295,7 @@ class LidarCenterNet(nn.Module):
     attention_weights = None
     pred_wp_1 = None
     selected_path = None
+    joined_wp_features = None
 
     if self.config.use_wp_gru or self.config.use_controller_input_prediction:
       if self.config.transformer_decoder_join:
@@ -849,8 +850,23 @@ class LidarCenterNet(nn.Module):
       pred_speed = pred_speed.detach().cpu().numpy()[0]
       images_lidar = np.ascontiguousarray(images_lidar, dtype=np.uint8)
       t_u.draw_probability_boxes(images_lidar, pred_speed, self.config.target_speeds)
+    
+    if pred_semantic is None:
+      semantic_image = np.empty((0, images_lidar.shape[1], images_lidar.shape[2]))
+    else:
+      indices = np.argmax(pred_semantic.cpu().detach().numpy(), axis=1)
+      classes = self.config.classes_list
+      converter = np.array(classes)
+      semantic_image = converter[indices[0, :], :].astype('uint8')
+      
+    if pred_depth is None:
+      depth_image = np.empty((0, images_lidar.shape[1], images_lidar.shape[2]))
+    else:
+      depth = pred_depth[0].cpu().detach().numpy()
+      depth_image = np.stack((depth, depth, depth), axis=2)
+      depth_image = (depth_image * 255).astype('uint8')
 
-    all_images = np.concatenate((rgb_image, images_lidar), axis=0)
+    all_images = np.concatenate((rgb_image, semantic_image, depth_image, images_lidar), axis=0)
     all_images = Image.fromarray(all_images.astype(np.uint8))
 
     store_path = str(str(save_path) + (f'/{step:04}.png'))

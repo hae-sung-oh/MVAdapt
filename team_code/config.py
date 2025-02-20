@@ -5,7 +5,7 @@ Config class that contains all the hyperparameters needed to build any model.
 import os
 import carla
 import re
-from vehicle_config import VehicleConfig
+from team_code_mvadapt.vehicle_config import VehicleConfig
 
 class GlobalConfig:
   """
@@ -402,23 +402,42 @@ class GlobalConfig:
     # Semantic Segmentation
     self.use_semantic = True  # Whether to use semantic segmentation as auxiliary loss
     self.num_semantic_classes = 7
+    # self.classes = {
+    #     0: [0, 0, 0],  # unlabeled
+    #     1: [30, 170, 250],  # vehicle
+    #     2: [200, 200, 200],  # road
+    #     3: [255, 255, 0],  # light
+    #     4: [0, 255, 0],  # pedestrian
+    #     5: [0, 255, 255],  # road line
+    #     6: [255, 255, 255],  # sidewalk
+    # }
+    # # Color format BGR
+    # self.classes_list = [
+    #     [0, 0, 0],  # unlabeled
+    #     [250, 170, 30],  # vehicle
+    #     [200, 200, 200],  # road
+    #     [0, 255, 255],  # light
+    #     [0, 255, 0],  # pedestrian
+    #     [255, 255, 0],  # road line
+    #     [255, 255, 255],  # sidewalk
+    # ]
     self.classes = {
         0: [0, 0, 0],  # unlabeled
-        1: [30, 170, 250],  # vehicle
-        2: [200, 200, 200],  # road
-        3: [255, 255, 0],  # light
+        1: [0, 0, 255],  # vehicle
+        2: [128, 64, 128],  # road
+        3: [255, 0, 0],  # red light
         4: [0, 255, 0],  # pedestrian
-        5: [0, 255, 255],  # road line
+        5: [157, 234, 50],  # road line
         6: [255, 255, 255],  # sidewalk
     }
-    # Color format BGR
+    #Color format BGR
     self.classes_list = [
         [0, 0, 0],  # unlabeled
-        [250, 170, 30],  # vehicle
-        [200, 200, 200],  # road
-        [0, 255, 255],  # light
+        [0, 0, 255],  # vehicle
+        [128, 64, 128],  # road
+        [255, 0, 0],  # red light
         [0, 255, 0],  # pedestrian
-        [255, 255, 0],  # road line
+        [50, 234, 157],  # road line
         [255, 255, 255],  # sidewalk
     ]
     self.converter = [

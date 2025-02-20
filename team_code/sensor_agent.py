@@ -20,10 +20,10 @@ from leaderboard.autoagents import autonomous_agent
 from model import LidarCenterNet
 from config import GlobalConfig
 from data import CARLA_Data
-from mvadapt_v3 import MVAdapt
 from nav_planner import RoutePlanner
 from nav_planner import extrapolate_waypoint_route
-from mvadapt_data import MVAdaptDataset
+from team_code_mvadapt.mvadapt_v3 import MVAdapt
+from team_code_mvadapt.mvadapt_data import MVAdaptDataset
 
 from filterpy.kalman import MerweScaledSigmaPoints
 from filterpy.kalman import UnscentedKalmanFilter as UKF
@@ -198,7 +198,7 @@ class SensorAgent(autonomous_agent.AutonomousAgent):
     self.stuck_started = False  # Detects the start of a stuck state
     self.was_stuck = False  # Tracks if the agent was stuck in the last step
     
-    self.mvdata = MVAdaptDataset(self.config, self.vehicle_config)
+    self.mvdata = MVAdaptDataset(self.config.root_dir, self.config, self.vehicle_config)
     self.adapt = os.getenv('ADAPT', 0)
     if self.adapt:
       print('MVAdapt is on.')
@@ -548,13 +548,14 @@ class SensorAgent(autonomous_agent.AutonomousAgent):
         ).reshape(-1, 2).unsqueeze(0))
       
     # Visualize the output of the last model
-    if compute_debug_output:
+    # if compute_debug_output:
+    if os.getenv("DEBUG_PATH", None) is not None:
       if self.config.use_controller_input_prediction:
         prob_target_speed = F.softmax(pred_target_speed, dim=1)
       else:
         prob_target_speed = pred_target_speed
 
-      self.nets[0].visualize_model(self.save_path,
+      self.nets[0].visualize_model(os.getenv("DEBUG_PATH"),
                                    self.step,
                                    tick_data['rgb'],
                                    lidar_bev,
@@ -567,7 +568,7 @@ class SensorAgent(autonomous_agent.AutonomousAgent):
                                    pred_speed=prob_target_speed,
                                    pred_bb=bbs_vehicle_coordinate_system,
                                    gt_speed=gt_velocity,
-                                   gt_wp=pred_wp_1,
+                                   gt_wp=None,
                                    mv_wp=pred_wps[0],
                                    wp_selected=wp_selected)
 

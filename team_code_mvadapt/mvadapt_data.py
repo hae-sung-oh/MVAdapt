@@ -1,5 +1,6 @@
 import os
 import pickle
+import shutil
 import numpy as np
 from torch.utils.data import Dataset, DataLoader
 import torch.nn.functional as F
@@ -34,8 +35,12 @@ def pad_data(data, max_len):
     result[:len(data)] = [item for item in data]
     return result
 
+def unroot(path_list, root_dir):
+    for i in range(len(path_list)):
+        path_list[i] = os.path.relpath(path_list[i], root_dir)
+    return path_list
 
-def process_data(data, agent, device):
+def process_data(data, agent, device, root_dir):
     batch_size = data['rgb'].size(0)
     
     gt_con = []
@@ -80,12 +85,51 @@ def process_data(data, agent, device):
     ego_vel = ego_vel.cpu().numpy()
     command = command.cpu().numpy()
     
-    return list(gt_wp), list(bs_wp), gt_con, bs_con, list(s_feature), rgb_path, lidar_path, list(target), list(ego_vel), list(command)
+    return list(gt_wp), list(bs_wp), gt_con, bs_con, list(s_feature), unroot(rgb_path, root_dir), unroot(lidar_path, root_dir), list(target), list(ego_vel), list(command)
+
+def move_duplicated_data(root_dir, backup_dir):
+    towns = os.listdir(root_dir)
+    for town in towns:
+        if os.path.isfile(os.path.join(root_dir, town)):
+            continue 
+
+        v_indices = os.listdir(os.path.join(root_dir, town))
+        for index in v_indices:
+            folders = os.listdir(os.path.join(root_dir, town, index))
+            temp = []
+
+            for folder in folders:
+                if os.path.isfile(os.path.join(root_dir, town, index, folder)):
+                    continue
+                temp.append(os.path.join(root_dir, town, index, folder))
+
+            temp.sort()
+
+            for i in range(len(temp) - 1):
+                si = '_'.join(temp[i].split('_')[:-5])
+                si_ = '_'.join(temp[i+1].split('_')[:-5])
+
+                if si == si_:
+                    lidar_path_i = os.path.join(temp[i], 'lidar')
+                    lidar_path_i_ = os.path.join(temp[i+1], 'lidar')
+
+                    num_i = len(os.listdir(lidar_path_i)) if os.path.exists(lidar_path_i) else 0
+                    num_i_ = len(os.listdir(lidar_path_i_)) if os.path.exists(lidar_path_i_) else 0
+
+                    remove = temp[i] if num_i < num_i_ else temp[i+1]
+
+                    dir_name = os.path.join(backup_dir, town, index, os.path.basename(remove))
+                    os.makedirs(dir_name, exist_ok=True)  
+
+                    if os.path.exists(remove): 
+                        for file in os.listdir(remove):  
+                            shutil.move(os.path.join(remove, file), dir_name)
 
 class MVAdaptDataset(Dataset):
-    def __init__(self, config=None, vehicle_config=None):
+    def __init__(self, root_dir, config=None, vehicle_config=None):
         self.config = GlobalConfig() if config is None else config
         self.vehicle_config = VehicleConfig() if vehicle_config is None else vehicle_config
+        self.root_dir = root_dir
 
         # Data for MVAdapt model
         self.vehicle_indices = []
@@ -117,8 +161,8 @@ class MVAdaptDataset(Dataset):
         data['scene_features'] = self.scene_features[idx]
         data['physics_params'] = self.physics_params[idx]
         data['gear_params'] = self.gear_params[idx]
-        data['rgb'] = np.load(self.rgb_paths[idx])
-        data['lidar'] = np.load(self.lidar_paths[idx])
+        data['rgb'] = np.load(os.path.join(self.root_dir, self.rgb_paths[idx]))
+        data['lidar'] = np.load(os.path.join(self.root_dir, self.lidar_paths[idx]))
         data['target_point'] = self.target_points[idx]
         data['ego_vel'] = self.ego_vels[idx]
         data['command'] = self.commands[idx]
@@ -204,6 +248,7 @@ class MVAdaptDataset(Dataset):
 
     def initialize(self, args, split='train'):
         print("Initializing MVAdapt Dataset...")
+        print(f"Root Directory: {self.root_dir}")
 
         agent = BasemodelAgent(args.base_model, verbose=args.verbose)
         self.config = agent.config
@@ -217,8 +262,7 @@ class MVAdaptDataset(Dataset):
 
         for v_index in vehicle_list:
             self.config.update_vehicle(v_index)
-            print(args.root_dir)
-            self.config.initialize(root_dir=args.root_dir, vehicle_index=v_index, verbose=args.verbose)
+            self.config.initialize(root_dir=self.root_dir, vehicle_index=v_index, verbose=args.verbose)
 
             data_dir = self.config.train_data if split == 'train' else self.config.val_data
             shuffle = True if split == 'train' else False
@@ -231,7 +275,7 @@ class MVAdaptDataset(Dataset):
 
             for data in tqdm(dataloader, desc=f"Processing {split.capitalize()} Data - Vehicle {v_index}"):
                 batch_size = data['rgb'].shape[0]
-                result = process_data(data, agent, args.device)
+                result = process_data(data, agent, args.device, self.root_dir)
 
                 self.vehicle_indices.extend([v_index] * batch_size)
                 self.gt_waypoints.extend(result[0])
@@ -263,7 +307,7 @@ class MVAdaptDataset(Dataset):
             else:
                 sampled_indices.extend(indices) 
         
-        dataset = MVAdaptDataset(self.config)
+        dataset = MVAdaptDataset(self.root_dir, self.config)
         for idx in sampled_indices:
             dataset.vehicle_indices.append(self.vehicle_indices[idx])
             dataset.gt_waypoints.append(self.gt_waypoints[idx])

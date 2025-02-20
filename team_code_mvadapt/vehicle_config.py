@@ -1,5 +1,5 @@
 import random
-from physics_config import PhysicsConfig
+from team_code_mvadapt.physics_config import PhysicsConfig
 import carla
 
 class VehicleConfig:

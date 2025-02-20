@@ -40,7 +40,7 @@ from leaderboard.autoagents.agent_wrapper_local import AgentWrapper, AgentError
 from leaderboard.utils.statistics_manager_local import StatisticsManager
 from leaderboard.utils.route_indexer import RouteIndexer
 
-from team_code.vehicle_config import VehicleConfig
+from team_code_mvadapt.vehicle_config import VehicleConfig
 
 import pathlib
 

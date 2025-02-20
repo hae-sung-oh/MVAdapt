@@ -49,7 +49,7 @@ from srunner.scenariomanager.scenarioatomics.atomic_criteria_local import (
 
 from leaderboard.utils.route_parser import RouteParser, TRIGGER_THRESHOLD, TRIGGER_ANGLE_THRESHOLD
 from leaderboard.utils.route_manipulation import interpolate_trajectory
-from vehicle_config import VehicleConfig
+from team_code_mvadapt.vehicle_config import VehicleConfig
 
 ROUTESCENARIO = ["RouteScenario"]
 
@@ -430,8 +430,8 @@ class RouteScenario(BasicScenario):
         if os.getenv("BENCHMARK") == "longest6":
             # amount = 500  # use all spawn points
             town_amount = {
-                "Town01": 100,
-                "Town02": 80,
+                "Town01": 70,
+                "Town02": 60,
                 "Town03": 120,
                 "Town04": 200,
                 "Town05": 120,

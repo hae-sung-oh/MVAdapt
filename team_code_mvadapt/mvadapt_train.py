@@ -19,8 +19,8 @@ import torch.optim as optim
 from tqdm import tqdm
 
 import wandb
-from mvadapt_v1 import MVAdapt
-from team_code.mvadapt_data import MVAdaptDataset
+from mvadapt_v3 import MVAdapt
+from mvadapt_data import MVAdaptDataset
 
 def compute_wp_accuracy(predicted, gt, tolerance=0.05):
     dimension_accuracy = torch.abs(predicted - gt) < tolerance 
@@ -222,15 +222,15 @@ def main():
 
     args = parser.parse_args()
     
-    master_set = MVAdaptDataset()
-    train_set = MVAdaptDataset()
-    test_set = MVAdaptDataset()
+    master_set = MVAdaptDataset(args.root_dir)
+    train_set = MVAdaptDataset(args.root_dir)
+    test_set = MVAdaptDataset(args.root_dir)
     
     loaded = False
     if args.load_data is not None and args.load_data != "None":
         try:
             train_set.load(f"{args.load_data}_train.pkl")
-            test_set.load(f"{args.load_data}_val.pkl")
+            test_set.load(f"{args.load_data}_test.pkl")
             # train_set.load(args.load_data)
             # test_set.load(args.load_data)
             loaded = True
@@ -245,14 +245,20 @@ def main():
     if not loaded:
         train_set.initialize(args, 'train')
         test_set.initialize(args, 'val')
+        ###################################################################################################
+        train_set.save('/home/ohs-dyros/gitRepo/MVAdapt/dataset/train_set.pkl')
+        test_set.save('/home/ohs-dyros/gitRepo/MVAdapt/dataset/test_set.pkl')
+        train_set = train_set.sample_data_per_vehicle(50000, exclude=[1, 2, 3, 5, 7, 8, 9, 11, 12, 15, 18, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 35])
+        test_set = test_set.sample_data_per_vehicle(50000, exclude=[1, 2, 3, 5, 7, 8, 9, 11, 12, 15, 18, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 35])
+        ###################################################################################################
         
     if args.save_data is not None and args.save_data != "None":
         train_set.save(args.save_data + "_train.pkl")
-        test_set.save(args.save_data + "_val.pkl")
+        test_set.save(args.save_data + "_test.pkl")
         
     wandb.init(project="MVAdapt-Training", config=args.__dict__)
     loaded = False
-    model = importlib.import_module(f'team_code.mvadapt_{args.version}').MVAdapt(train_set.config, args)
+    model = importlib.import_module(f'team_code_mvadapt.mvadapt_{args.version}').MVAdapt(train_set.config, args)
     if args.load_model is not None and args.load_model != "None":
         try:
             print("Loading Model")

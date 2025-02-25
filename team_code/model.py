@@ -866,12 +866,15 @@ class LidarCenterNet(nn.Module):
       depth_image = np.stack((depth, depth, depth), axis=2)
       depth_image = (depth_image * 255).astype('uint8')
 
-    all_images = np.concatenate((rgb_image, semantic_image, depth_image, images_lidar), axis=0)
+    all_images = np.concatenate((depth_image, semantic_image, rgb_image, images_lidar), axis=0)
     all_images = Image.fromarray(all_images.astype(np.uint8))
 
-    store_path = str(str(save_path) + (f'/{step:04}.png'))
-    Path(store_path).parent.mkdir(parents=True, exist_ok=True)
-    all_images.save(store_path)
+    if save_path is not None:
+      store_path = str(str(save_path) + (f'/{step:04}.png'))
+      Path(store_path).parent.mkdir(parents=True, exist_ok=True)
+      all_images.save(store_path)
+      
+    return all_images
 
 
 class GRUWaypointsPredictorInterFuser(nn.Module):

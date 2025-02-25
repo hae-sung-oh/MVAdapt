@@ -431,7 +431,7 @@ class RouteScenario(BasicScenario):
             # amount = 500  # use all spawn points
             town_amount = {
                 "Town01": 70,
-                "Town02": 60,
+                "Town02": 50,
                 "Town03": 120,
                 "Town04": 200,
                 "Town05": 120,

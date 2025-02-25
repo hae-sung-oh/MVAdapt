@@ -24,6 +24,7 @@ import numpy as np
 import sys
 import json
 
+import pygame
 from wandb import agent
 
 import carla
@@ -255,6 +256,7 @@ class LeaderboardEvaluator(object):
         crash_message = ""
         entry_status = "Started"
 
+        os.environ["ROUTE_NAME"] = config.name
         print("\n\033[1m========= Preparing {} (repetition {}, index {}) =========".format(config.name, config.repetition_index, args.index), flush=True)
         print("> Setting up the agent\033[0m")
 
@@ -375,14 +377,6 @@ class LeaderboardEvaluator(object):
 
         # Run the scenario
         try:
-            # camera = self.client.get_world().get_actors().filter("sensor.camera.rgb")[0]
-            # print(camera)
-            # camera.listen(lambda image: process_image(image))
-
-            # camera_thread = threading.Thread(target=camera_listener)
-            # camera_thread.daemon = True
-            # camera_thread.start()
-
             self.manager.run_scenario()
             print("Scenario finished")
 
@@ -416,9 +410,6 @@ class LeaderboardEvaluator(object):
 
             self._cleanup(result)
 
-            # camera_thread.join()
-            # del camera
-
         except Exception as e:
             print("\n\033[91mFailed to stop the scenario, the statistics might be empty:")
             print("> {}\033[0m\n".format(e))
@@ -427,7 +418,6 @@ class LeaderboardEvaluator(object):
             crash_message = "Simulation crashed"
 
         if crash_message == "Simulation crashed":
-            # sys.exit(-1)
             return False
         else:
             return True
@@ -452,10 +442,7 @@ class LeaderboardEvaluator(object):
                 success_list[route_indexer._index - 1] = result
                 with open(args.result_list, "wb") as f:
                     pickle.dump(success_list, f)
-            # except Exception as e:
-            #     print(f"Exception - Retry: {e}")
-            #     traceback.print_exc()
-            #     return False
+                    
             except RuntimeError as e:
                 self.global_statistics(args, route_indexer)
                 print(f"RuntimeError - Retry: {e}")
@@ -509,35 +496,12 @@ def argument_parser():
     return parser.parse_args()
 
 
-def process_image(image):
-    global image_array
-    if image is not None:
-        # Convert CARLA image to numpy array
-        image_array = np.frombuffer(image.raw_data, dtype=np.uint8)
-        image_array = image_array.reshape((image.height, image.width, 4))
-
-        # Remove the alpha channel and convert it to a format suitable for pygame
-        # image_surface = pygame.surfarray.make_surface(image_array[:, :, :3].swapaxes(0, 1))
-        image_bgr = image_array[:, :, :3]  # Drop the alpha channel (RGBA to RGB)
-        image_bgr = cv2.cvtColor(image_bgr, cv2.COLOR_RGB2BGR)  # Convert RGB to BGR
-    else:
-        image_array = None
-
-    # Display the image using OpenCV
-    # cv2.imshow("CARLA Camera Stream", image_bgr)
-    # cv2.waitKey(1)  # Needed to update the display window
-    # Display the image on the pygame window
-    # screen.blit(image_surface, (0, 0))
-    # pygame.display.flip()
-
-
 def main(args):
     """
     Run the challenge mode
     """
     statistics_manager = StatisticsManager()
     route_indexer = RouteIndexer(args.routes, args.scenarios, args.repetitions)
-
     checkpoint_dir = os.path.dirname(args.checkpoint)
     if not os.path.exists(checkpoint_dir):
         os.makedirs(checkpoint_dir)
@@ -558,47 +522,25 @@ def main(args):
             success_list = pickle.load(f)
         route_indexer.resume(args.checkpoint)
         statistics_manager.resume(args.checkpoint)
-
+        
     leaderboard_evaluator = LeaderboardEvaluator(args, statistics_manager)
+    
+    result = leaderboard_evaluator.run(args, route_indexer, success_list)
 
-    while True:
-        print("While loop")
-        if leaderboard_evaluator.run(args, route_indexer, success_list):
-            print("Success")
-            return True
-        else:
-            print("Fail")
-            del leaderboard_evaluator
-            with open(args.result_list, "wb") as f:
-                pickle.dump(success_list, f)
-            return False
-            # leaderboard_evaluator = LeaderboardEvaluator(args, statistics_manager)
-
-
-def image_streaming():
-    global image_array
-    while True:
-        if image_array is not None:
-            cv2.imshow("CARLA Camera Stream", image_array)
-            if cv2.waitKey(1) & 0xFF == ord("q"):
-                break
+    del leaderboard_evaluator
+    if os.getenv("STREAM", 0):
+        pygame.quit()
+    with open(args.result_list, "wb") as f:
+        pickle.dump(success_list, f)
+    return result
 
 
 if __name__ == "__main__":
-    # pygame.init()
-    # display_width = 1024
-    # display_height = 256
-    # screen = pygame.display.set_mode((display_width, display_height))
-    # pygame.display.set_caption("CARLA Camera View")
-
     args = argument_parser()
-    # result = main(args, screen)
-    # cv2.namedWindow("CARLA Camera Stream", cv2.WINDOW_NORMAL)
-    # cv2.resizeWindow("CARLA Camera Stream", 1024, 256)
     result = main(args)
-    print("Finished")
-    # cv2.destroyAllWindows()
     if result:
+        print("Finished: Success")
         sys.exit(0)
     else:
+        print("Finished: Failed")
         sys.exit(-1)

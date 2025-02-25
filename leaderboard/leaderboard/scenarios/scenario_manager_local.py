@@ -11,11 +11,15 @@ It must not be modified and is for reference only!
 """
 
 from __future__ import print_function
+from multiprocessing import shared_memory
+import os
 import signal
 import sys
 import time
 
 import py_trees
+import pygame
+from PIL import Image
 import carla
 
 from srunner.scenariomanager.carla_data_provider import CarlaDataProvider
@@ -74,10 +78,27 @@ class ScenarioManager(object):
         self.start_system_time = None
         self.end_system_time = None
         self.end_game_time = None
+        self.stream = os.getenv("STREAM", 0)
 
         # Register the scenario tick as callback for the CARLA world
         # Use the callback_id inside the signal handler to allow external interrupts
         signal.signal(signal.SIGINT, self.signal_handler)
+        
+        if self.stream:
+            pygame.init()
+            self.screen = pygame.display.set_mode((1024, 1792))
+            self.clock = pygame.time.Clock()
+            try:
+                self.shm = shared_memory.SharedMemory(name='pygame_image', create=True, size=1024*1792*3)
+            except FileExistsError:
+                print("Using existing shared memory.")
+                self.shm = shared_memory.SharedMemory(name='pygame_image')
+            
+    def __del__(self):
+        if self.stream:
+            self.shm.close()
+            self.shm.unlink()
+            pygame.quit()
 
     def signal_handler(self, signum, frame):
         """
@@ -124,7 +145,6 @@ class ScenarioManager(object):
 
         self._watchdog.start()
         self._running = True
-        print("running scenario: entering while loop")
         while self._running:
             timestamp = None
             world = CarlaDataProvider.get_world()
@@ -134,7 +154,20 @@ class ScenarioManager(object):
                     timestamp = snapshot.timestamp
             if timestamp:
                 self._tick_scenario(timestamp)
-        print("running scenario: exited while loop")
+        
+            if self.stream:
+                for event in pygame.event.get():
+                    if event.type == pygame.QUIT:
+                        pygame.quit()
+                
+                data = bytes(self.shm.buf[:1024*1792*3])
+                img = Image.frombytes('RGB', (1024, 1792), data)
+                
+                pygame_img = pygame.image.fromstring(img.tobytes(), img.size, img.mode)
+                self.screen.blit(pygame_img, (0, 0))
+                pygame.display.flip()
+                self.clock.tick(30)
+            
 
     def _tick_scenario(self, timestamp):
         """

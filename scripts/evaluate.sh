@@ -9,10 +9,11 @@ export TIMEOUT="6000.0"
 export RECORD=""
 export SCENARIOS="${WORK_DIR}/leaderboard/data/scenarios/eval_scenarios.json"
 export REPETITIONS=1
-export AGENT="${WORK_DIR}/team_code/sensor_agent.py"
+export AGENT="${WORK_DIR}/team_code/sensor_agent_local.py"
 export TRACK="SENSORS"
 export DIRECT=0
 export RESUME=1
+export RESUME_FAILED=0
 export DATAGEN=0
 
 # export AGENTCONFIG="${WORK_DIR}/pretrained_models/lav/aim_02_05_withheld_0"
@@ -61,6 +62,7 @@ while [ $EXIT_CODE -ne 0 ]; do
     --agent-config=${AGENTCONFIG} \
     --track=${TRACK} \
     --resume=${RESUME} \
+    --resume-failed=${RESUME_FAILED} \
     --checkpoint=${CHECKPOINT} \
     --result-list=${RESULT_LIST} \
     --index=${VEHICLEINDEX} &

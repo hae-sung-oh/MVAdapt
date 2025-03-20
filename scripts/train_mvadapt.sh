@@ -13,15 +13,19 @@ export BASE_MODEL=$AGENTCONFIG
 export DEVICE="cuda:0"
 export EPOCHS=100
 export LR=0.0001
-export BATCH_SIZE=512
+export BATCH_SIZE=4096
 export PROCESS_BATCH=64
 export VERBOSE=true
-export DEBUG=true
+export DEBUG=false
 
-export LOAD_DATA="${WORK_DIR}/dataset/mvadapt_dataset_sampled_6x25x"
+# export REMOVE_CRASHED=true
+# export REMOVE_IMPERFECT=true
+# export MOVE_DUP_DIR="${WORK_DIR}/dataset_backup"
+
+export LOAD_DATA="${WORK_DIR}/dataset/mvadapt_dataset_250305"
 export SAVE_DATA="None"
 # export LOAD_DATA="None"
-# export SAVE_DATA="${WORK_DIR}/dataset/mvadapt_dataset_250204"
+# export SAVE_DATA="${WORK_DIR}/dataset/mvadapt_dataset_250305"
 
 # export LOAD_MODEL="${WORK_DIR}/pretrained_models/mvadapt.pth"
 # export SAVE_MODEL="None"
@@ -29,7 +33,7 @@ export LOAD_MODEL="None"
 export SAVE_MODEL="${WORK_DIR}/pretrained_models/mvadapt_${VERSION}_${REPEAT}.pth"
 
 
-python ${WORK_DIR}/team_code/mvadapt_train.py \
+python ${WORK_DIR}/team_code_mvadapt/mvadapt_train.py \
 --vehicle_indices=${VEHICLE} \
 --root_dir=${ROOT_DIR} \
 --base_model=${BASE_MODEL} \
@@ -43,4 +47,8 @@ python ${WORK_DIR}/team_code/mvadapt_train.py \
 --load_data=${LOAD_DATA} \
 --load_model=${LOAD_MODEL} \
 --verbose=${VERBOSE} \
---version=${VERSION} 
+--version=${VERSION} \
+--remove_crashed=${REMOVE_CRASHED} \
+--remove_imperfect=${REMOVE_IMPERFECT} \
+--move_dup_dir=${MOVE_DUP_DIR} \
+--debug=${DEBUG}

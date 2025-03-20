@@ -1,7 +1,7 @@
 #!/bin/bash
 
-VERSION_LIST=("v3")
-REPEAT=3
+VERSION_LIST=("v5" "v6")
+REPEAT=1
 
 for _VERSION in "${VERSION_LIST[@]}"; do
     for _REPEAT in $(seq 1 $REPEAT); do

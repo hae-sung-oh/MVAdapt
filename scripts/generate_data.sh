@@ -56,4 +56,3 @@ while [ $EXIT_CODE -ne 0 ]; do
         echo "Script exited with code 0, stopping."
     fi
 done
-    

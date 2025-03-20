@@ -12,6 +12,7 @@ It must not be modified and is for reference only!
 
 from __future__ import print_function
 from multiprocessing import shared_memory
+from operator import is_
 import os
 import signal
 import sys
@@ -167,7 +168,6 @@ class ScenarioManager(object):
                 self.screen.blit(pygame_img, (0, 0))
                 pygame.display.flip()
                 self.clock.tick(30)
-            
 
     def _tick_scenario(self, timestamp):
         """
@@ -217,7 +217,11 @@ class ScenarioManager(object):
             spectator.set_transform(carla.Transform(ego_trans.location + carla.Location(z=50), carla.Rotation(pitch=-90)))
 
         if self._running and self.get_running_status():
-            CarlaDataProvider.get_world().tick(self._timeout)
+            if CarlaDataProvider.is_sync_mode():
+                time.sleep(0.05) # For resolving the issue of the simulation freezing
+                CarlaDataProvider.get_world().tick(self._timeout)
+            else:
+                CarlaDataProvider.get_world().wait_for_tick(self._timeout)
 
     def get_running_status(self):
         """

@@ -154,3 +154,4 @@ pyrightconfig.json
 .importance_df.json
 debug*/
 wandb/
+archive/

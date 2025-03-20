@@ -124,6 +124,12 @@ def move_duplicated_data(root_dir, backup_dir):
                     if os.path.exists(remove): 
                         for file in os.listdir(remove):  
                             shutil.move(os.path.join(remove, file), dir_name)
+                            
+def remove_crashed_data(root_dir):
+    config = GlobalConfig()
+    config.initialize(root_dir=root_dir)
+    temp_dataset = CARLA_Data(config.train_data, config, clear_crashed=True, clear_imperfect=True)
+    del config, temp_dataset
 
 class MVAdaptDataset(Dataset):
     def __init__(self, root_dir, config=None, vehicle_config=None):
@@ -246,9 +252,14 @@ class MVAdaptDataset(Dataset):
 
         return np.array(physics_prop, dtype=float), np.array(gear_prop, dtype=float)
 
-    def initialize(self, args, split='train'):
+    def initialize(self, args, split='train', clear_crashed=False, clear_imperfect=False, move_dup_dir=None):
         print("Initializing MVAdapt Dataset...")
         print(f"Root Directory: {self.root_dir}")
+        
+        if move_dup_dir is not None:
+            print(f"Moving duplicated data to {move_dup_dir}")
+            move_duplicated_data(self.root_dir, move_dup_dir)
+            print("Moving duplicated data done.")
 
         agent = BasemodelAgent(args.base_model, verbose=args.verbose)
         self.config = agent.config
@@ -266,7 +277,7 @@ class MVAdaptDataset(Dataset):
 
             data_dir = self.config.train_data if split == 'train' else self.config.val_data
             shuffle = True if split == 'train' else False
-            carla_set = CARLA_Data(data_dir, self.config, verbose=args.verbose)
+            carla_set = CARLA_Data(data_dir, self.config, verbose=args.verbose, clear_crashed=clear_crashed, clear_imperfect=clear_imperfect)
             dataloader = DataLoader(carla_set, batch_size=args.process_batch, num_workers=6, shuffle=shuffle, pin_memory=True)
 
             if v_index not in physics_cache:
@@ -293,6 +304,12 @@ class MVAdaptDataset(Dataset):
 
                 torch.cuda.empty_cache()
                 del result
+            try:
+                self.save(f"/home/ohs-dyros/gitRepo/MVAdapt/dataset/checkpoint_{v_index}.pkl")
+                print(f"Saved checkpoint for vehicle {v_index}")
+            except Exception as e:
+                print(f"Failed to save checkpoint.: {e}")
+                
                 
     def sample_data_per_vehicle(self, num_samples, exclude=[]):
         v2index = defaultdict(list)

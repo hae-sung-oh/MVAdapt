@@ -77,122 +77,134 @@ class CARLA_Data(Dataset):  # pylint: disable=locally-disabled, invalid-name
     crashed_routes = 0
 
     for sub_root in tqdm(root, file=sys.stdout, disable=rank != 0):
+      try:
+        # list subdirectories in root
+        routes = next(os.walk(sub_root))[1]
 
-      # list subdirectories in root
-      routes = next(os.walk(sub_root))[1]
+        for route in routes:
+          route_dir = sub_root + '/' + route
 
-      for route in routes:
-        route_dir = sub_root + '/' + route
-
-        if not os.path.isfile(route_dir + '/results.json.gz'):
-          total_routes += 1
-          crashed_routes += 1
-          if clear_crashed:
-            if verbose:
-              print(f'Removing {route_dir} because it is missing results.json.gz')
-            os.system(f'rm -rf {route_dir}')
-          continue
-
-        with gzip.open(route_dir + '/results.json.gz', 'rt', encoding='utf-8') as f:
-          total_routes += 1
-          results_route = ujson.load(f)
-
-        # We skip data where the expert did not achieve perfect driving score
-        if results_route['scores']['score_composed'] < 100.0:
-          imperfect_routes += 1
-          if clear_imperfect:
-            if verbose:
-              print(f'Removing {route_dir} because it is imperfect')
-            os.system(f'rm -rf {route_dir}')
-          continue
-
-        perfect_routes += 1
-
-        num_seq = len(os.listdir(route_dir + '/lidar'))
-
-        for seq in range(config.skip_first, num_seq - self.config.pred_len - self.config.seq_len):
-          if seq % config.train_sampling_rate != 0:
+          if not os.path.isfile(route_dir + '/results.json.gz'):
+            total_routes += 1
+            crashed_routes += 1
+            if clear_crashed:
+              if verbose:
+                print(f'Removing {route_dir} because it is missing results.json.gz')
+              os.system(f'rm -rf {route_dir}')
             continue
-          # load input seq and pred seq jointly
-          image = []
-          image_augmented = []
-          semantic = []
-          semantic_augmented = []
-          bev_semantic = []
-          bev_semantic_augmented = []
-          depth = []
-          depth_augmented = []
-          lidar = []
-          box = []
-          future_box = []
-          measurement = []
-          control = []
+          try:
+            with gzip.open(route_dir + '/results.json.gz', 'rt', encoding='utf-8') as f:
+              total_routes += 1
+              results_route = ujson.load(f)
+          except Exception as e:
+            print(f'Error loading {route_dir}/results.json.gz: {e}')
+            crashed_routes += 1
+            if clear_crashed:
+              if verbose:
+                print(f'Removing {route_dir} because it is crashed')
+              os.system(f'rm -rf {route_dir}')
+            continue
 
-          # Loads the current (and past) frames (if seq_len > 1)
-          for idx in range(self.config.seq_len):
-            if not self.config.use_plant:
-              image.append(route_dir + '/rgb' + (f'/{(seq + idx):04}.jpg'))
-              image_augmented.append(route_dir + '/rgb_augmented' + (f'/{(seq + idx):04}.jpg'))
-              semantic.append(route_dir + '/semantics' + (f'/{(seq + idx):04}.png'))
-              semantic_augmented.append(route_dir + '/semantics_augmented' + (f'/{(seq + idx):04}.png'))
-              bev_semantic.append(route_dir + '/bev_semantics' + (f'/{(seq + idx):04}.png'))
-              bev_semantic_augmented.append(route_dir + '/bev_semantics_augmented' + (f'/{(seq + idx):04}.png'))
-              depth.append(route_dir + '/depth' + (f'/{(seq + idx):04}.png'))
-              depth_augmented.append(route_dir + '/depth_augmented' + (f'/{(seq + idx):04}.png'))
-              lidar.append(route_dir + '/lidar' + (f'/{(seq + idx):04}.laz'))
-              control.append(route_dir + '/control' + (f'/{(seq + idx):04}.json.gz'))
+          # We skip data where the expert did not achieve perfect driving score
+          if results_route['scores']['score_composed'] < 100.0:
+            imperfect_routes += 1
+            if clear_imperfect:
+              if verbose:
+                print(f'Removing {route_dir} because it is imperfect')
+              os.system(f'rm -rf {route_dir}')
+            continue
 
-              if estimate_sem_distribution:
-                semantics_i = self.converter[cv2.imread(semantic[-1], cv2.IMREAD_UNCHANGED)]  # type: ignore # pylint: disable=locally-disabled, unsubscriptable-object
-                self.semantic_distribution.extend(semantics_i.flatten().tolist())
+          perfect_routes += 1
 
-            box.append(route_dir + '/boxes' + (f'/{(seq + idx):04}.json.gz'))
-            forcast_step = int(config.forcast_time / (config.data_save_freq / config.carla_fps) + 0.5)
-            future_box.append(route_dir + '/boxes' + (f'/{(seq + idx + forcast_step):04}.json.gz'))
+          num_seq = len(os.listdir(route_dir + '/lidar'))
 
-          # we only store the root and compute the file name when loading,
-          # because storing 40 * long string per sample can go out of memory.
-
-          measurement.append(route_dir + '/measurements')
-
-          if estimate_class_distributions:
-            with gzip.open(measurement[-1] + f'/{(seq + self.config.seq_len):04}.json.gz', 'rt', encoding='utf-8') as f:
-              measurements_i = ujson.load(f)
-
-            target_speed_index, angle_index = self.get_indices_speed_angle(target_speed=measurements_i['target_speed'],
-                                                                           brake=measurements_i['brake'],
-                                                                           angle=measurements_i['angle'])
-
-            self.angle_distribution.append(angle_index)
-            self.speed_distribution.append(target_speed_index)
-
-          if self.config.lidar_seq_len > 1:
+          for seq in range(config.skip_first, num_seq - self.config.pred_len - self.config.seq_len):
+            if seq % config.train_sampling_rate != 0:
+              continue
             # load input seq and pred seq jointly
-            temporal_lidar = []
-            temporal_measurement = []
-            for idx in range(self.config.lidar_seq_len):
+            image = []
+            image_augmented = []
+            semantic = []
+            semantic_augmented = []
+            bev_semantic = []
+            bev_semantic_augmented = []
+            depth = []
+            depth_augmented = []
+            lidar = []
+            box = []
+            future_box = []
+            measurement = []
+            control = []
+
+            # Loads the current (and past) frames (if seq_len > 1)
+            for idx in range(self.config.seq_len):
               if not self.config.use_plant:
-                assert self.config.seq_len == 1  # Temporal LiDARs are only supported with seq len 1 right now
-                temporal_lidar.append(route_dir + '/lidar' + (f'/{(seq - idx):04}.laz'))
-                temporal_measurement.append(route_dir + '/measurements' + (f'/{(seq - idx):04}.json.gz'))
+                image.append(route_dir + '/rgb' + (f'/{(seq + idx):04}.jpg'))
+                image_augmented.append(route_dir + '/rgb_augmented' + (f'/{(seq + idx):04}.jpg'))
+                semantic.append(route_dir + '/semantics' + (f'/{(seq + idx):04}.png'))
+                semantic_augmented.append(route_dir + '/semantics_augmented' + (f'/{(seq + idx):04}.png'))
+                bev_semantic.append(route_dir + '/bev_semantics' + (f'/{(seq + idx):04}.png'))
+                bev_semantic_augmented.append(route_dir + '/bev_semantics_augmented' + (f'/{(seq + idx):04}.png'))
+                depth.append(route_dir + '/depth' + (f'/{(seq + idx):04}.png'))
+                depth_augmented.append(route_dir + '/depth_augmented' + (f'/{(seq + idx):04}.png'))
+                lidar.append(route_dir + '/lidar' + (f'/{(seq + idx):04}.laz'))
+                control.append(route_dir + '/control' + (f'/{(seq + idx):04}.json.gz'))
 
-            self.temporal_lidars.append(temporal_lidar)
-            self.temporal_measurements.append(temporal_measurement)
+                if estimate_sem_distribution:
+                  semantics_i = self.converter[cv2.imread(semantic[-1], cv2.IMREAD_UNCHANGED)]  # type: ignore # pylint: disable=locally-disabled, unsubscriptable-object
+                  self.semantic_distribution.extend(semantics_i.flatten().tolist())
 
-          self.images.append(image)
-          self.images_augmented.append(image_augmented)
-          self.semantics.append(semantic)
-          self.semantics_augmented.append(semantic_augmented)
-          self.bev_semantics.append(bev_semantic)
-          self.bev_semantics_augmented.append(bev_semantic_augmented)
-          self.depth.append(depth)
-          self.depth_augmented.append(depth_augmented)
-          self.lidars.append(lidar)
-          self.boxes.append(box)
-          self.future_boxes.append(future_box)
-          self.measurements.append(measurement)
-          self.sample_start.append(seq)
-          self.control.append(control)
+              box.append(route_dir + '/boxes' + (f'/{(seq + idx):04}.json.gz'))
+              forcast_step = int(config.forcast_time / (config.data_save_freq / config.carla_fps) + 0.5)
+              future_box.append(route_dir + '/boxes' + (f'/{(seq + idx + forcast_step):04}.json.gz'))
+
+            # we only store the root and compute the file name when loading,
+            # because storing 40 * long string per sample can go out of memory.
+
+            measurement.append(route_dir + '/measurements')
+
+            if estimate_class_distributions:
+              with gzip.open(measurement[-1] + f'/{(seq + self.config.seq_len):04}.json.gz', 'rt', encoding='utf-8') as f:
+                measurements_i = ujson.load(f)
+
+              target_speed_index, angle_index = self.get_indices_speed_angle(target_speed=measurements_i['target_speed'],
+                                                                            brake=measurements_i['brake'],
+                                                                            angle=measurements_i['angle'])
+
+              self.angle_distribution.append(angle_index)
+              self.speed_distribution.append(target_speed_index)
+
+            if self.config.lidar_seq_len > 1:
+              # load input seq and pred seq jointly
+              temporal_lidar = []
+              temporal_measurement = []
+              for idx in range(self.config.lidar_seq_len):
+                if not self.config.use_plant:
+                  assert self.config.seq_len == 1  # Temporal LiDARs are only supported with seq len 1 right now
+                  temporal_lidar.append(route_dir + '/lidar' + (f'/{(seq - idx):04}.laz'))
+                  temporal_measurement.append(route_dir + '/measurements' + (f'/{(seq - idx):04}.json.gz'))
+
+              self.temporal_lidars.append(temporal_lidar)
+              self.temporal_measurements.append(temporal_measurement)
+
+            self.images.append(image)
+            self.images_augmented.append(image_augmented)
+            self.semantics.append(semantic)
+            self.semantics_augmented.append(semantic_augmented)
+            self.bev_semantics.append(bev_semantic)
+            self.bev_semantics_augmented.append(bev_semantic_augmented)
+            self.depth.append(depth)
+            self.depth_augmented.append(depth_augmented)
+            self.lidars.append(lidar)
+            self.boxes.append(box)
+            self.future_boxes.append(future_box)
+            self.measurements.append(measurement)
+            self.sample_start.append(seq)
+            self.control.append(control)
+          
+      except Exception as e:
+        print(f'Error loading {sub_root}: {e}')
+        continue
 
     if estimate_class_distributions:
       classes_target_speeds = np.unique(self.speed_distribution)

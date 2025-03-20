@@ -40,6 +40,7 @@ from leaderboard.envs.sensor_interface import SensorConfigurationInvalid
 from leaderboard.autoagents.agent_wrapper_local import AgentWrapper, AgentError
 from leaderboard.utils.statistics_manager_local import StatisticsManager
 from leaderboard.utils.route_indexer import RouteIndexer
+from leaderboard.utils.checkpoint_tools import fetch_dict
 
 from team_code_mvadapt.vehicle_config import VehicleConfig
 
@@ -421,40 +422,62 @@ class LeaderboardEvaluator(object):
             return False
         else:
             return True
+    
+    def check_resume(self, args, index, success_list, data):
+        try:
+            log = data["_checkpoint"]["global_record"]["meta"]["exceptions"][index][2]
+            resume = (int(args.resume) == 1 and int(args.resume_failed) == 1 and log != "Completed") or (success_list[index] == False)
+        except Exception:
+            resume = True
+            log = None
+        return resume, log
 
     def run(self, args, route_indexer, success_list):
         result = True
         run = False
-        while route_indexer.peek() and result and not success_list[route_indexer._index]:
-            try:
-                run = True
-                print("Starting new route.", flush=True)
-                # setup
+        data = fetch_dict(args.checkpoint)
+        
+        while route_indexer.peek():
+            resume, log = self.check_resume(args, route_indexer._index, success_list, data)
+            print(resume, log)
+            if resume:
+                if log is not None:
+                    print(f"Resume: RouteScenario_{route_indexer._index}: {log}")
+                else:
+                    print("Starting new route.")
+                try:
+                    run = True
+                    # setup
+                    config = route_indexer.next()
+                    print("Load and run scenarios.")
+
+                    # run
+                    result = self._load_and_run_scenario(args, config)
+
+                    print("Save state.")
+                    route_indexer.save_state(args.checkpoint)
+
+                    success_list[route_indexer._index - 1] = result
+                    with open(args.result_list, "wb") as f:
+                        pickle.dump(success_list, f)
+                        
+                except RuntimeError as e:
+                    self.global_statistics(args, route_indexer)
+                    print(f"RuntimeError - Retry: {e}")
+                    traceback.print_exc()
+                    return False
+                except KeyboardInterrupt as e:
+                    self.global_statistics(args, route_indexer)
+                    print(f"KeyboardInterrupt - Retry: {e}")
+                    traceback.print_exc()
+                    return False
+                if run:
+                    self.global_statistics(args, route_indexer)
+            else:
+                print(f"Skip: RouteScenario_{route_indexer._index}: {log}")
                 config = route_indexer.next()
-                print("Load and run scenarios.", flush=True)
-
-                # run
-                result = self._load_and_run_scenario(args, config)
-
-                print("Save state.", flush=True)
-                route_indexer.save_state(args.checkpoint)
-
-                success_list[route_indexer._index - 1] = result
-                with open(args.result_list, "wb") as f:
-                    pickle.dump(success_list, f)
-                    
-            except RuntimeError as e:
-                self.global_statistics(args, route_indexer)
-                print(f"RuntimeError - Retry: {e}")
-                traceback.print_exc()
-                return False
-            except KeyboardInterrupt as e:
-                self.global_statistics(args, route_indexer)
-                print(f"KeyboardInterrupt - Retry: {e}")
-                traceback.print_exc()
-                return False
-        if run:
-            self.global_statistics(args, route_indexer)
+                result = True
+            
         return result
 
     def global_statistics(self, args, route_indexer):
@@ -488,6 +511,7 @@ def argument_parser():
 
     parser.add_argument("--track", type=str, default="SENSORS", help="Participation track: SENSORS, MAP")
     parser.add_argument("--resume", type=int, default=0, help="Resume execution from last checkpoint?")
+    parser.add_argument("--resume-failed", type=int, default=0, help="Resume execution of failed scenarios?")
     parser.add_argument("--checkpoint", type=str, default="./simulation_results.json", help="Path to checkpoint used for saving statistics and resuming")
 
     parser.add_argument("--result-list", type=str, default="./result_list.pickle", help="List of results of the scenarios")
@@ -520,14 +544,20 @@ def main(args):
     else:
         with open(args.result_list, "rb") as f:
             success_list = pickle.load(f)
-        route_indexer.resume(args.checkpoint)
         statistics_manager.resume(args.checkpoint)
+        if int(args.resume_failed) == 0:
+            route_indexer.resume(args.checkpoint)
         
     leaderboard_evaluator = LeaderboardEvaluator(args, statistics_manager)
     
-    result = leaderboard_evaluator.run(args, route_indexer, success_list)
+    try: 
+        result = leaderboard_evaluator.run(args, route_indexer, success_list)
+    except KeyError as e:
+        print(f"KeyError: {e}")
+        result = False
 
     del leaderboard_evaluator
+    
     if os.getenv("STREAM", 0):
         pygame.quit()
     with open(args.result_list, "wb") as f:

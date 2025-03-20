@@ -31,55 +31,12 @@ def compute_wp_accuracy(predicted, gt, tolerance=0.05):
 def compute_mae(predicted, gt):
     return torch.mean(torch.abs(predicted - gt)).item()
 
-# def train(args, gt_controls, pred_controls, physics, gear) -> MVAdapt:
-#     print("Training Model")
-#     model = MVAdapt(args.dim0, args.dim1, args.dim2, args.dim3, args.physics_dim, args.max_gear_num, args.gear_dim)
-#     optimizer = optim.Adam(model.parameters(), lr=args.lr) # type: ignore
-#     loss_fn = Loss_fn
-    
-#     dataset = TensorDataset(gt_controls, pred_controls, physics, gear)
-#     data_loader = DataLoader(dataset, batch_size=args.batch_size, shuffle=True)
-    
-#     for epoch in range(args.epochs):
-#         model.train()
-#         total_loss = 0
-#         total_correct = 0
-#         total_samples = 0
-        
-#         # Wrap the DataLoader in a progress bar
-#         progress_bar = tqdm(data_loader, desc=f"Epoch {epoch + 1}")
-        
-#         for gt, pred, phys, g in progress_bar:
-#             optimizer.zero_grad()
-#             predicted = model(pred, phys, g)
-#             loss = loss_fn(predicted, gt)
-#             loss.backward()
-#             optimizer.step()
-#             total_loss += loss.item()
-            
-#             batch_accuracy = compute_control_accuracy(predicted, gt, tolerance=0.1)
-#             total_correct += batch_accuracy * gt.size(0)
-#             total_samples += gt.size(0)
-            
-#             # Update progress bar with loss information
-#             progress_bar.set_postfix(loss=loss.item(), accuracy=batch_accuracy)
-
-#         avg_loss = total_loss / len(data_loader)
-#         avg_accuracy = total_correct / total_samples
-#         wandb.log({"epoch": epoch + 1, "train_loss": avg_loss,  "train_accuracy": avg_accuracy})
-#         print(f"Epoch {epoch + 1}, Avg Loss: {avg_loss:.4f}, Total Loss: {total_loss:.4f}, Accuracy: {avg_accuracy:.4f}")
-
-#     if args.save_model is not None and args.save_model != "None":
-#         torch.save(model.state_dict(), args.save_model)
-#         print(f"Model saved to {args.save_model}")
-        
-#     return model
-
 def lossfn(pred, gt):
     return torch.mean(torch.abs(pred - gt))
 
-def train(model, args, dataset) -> MVAdapt:
+def train(model, args, dataset):
     print("Training Model")
+    model.to(args.device)
     optimizer = optim.Adam(model.parameters(), lr=args.lr)  # type: ignore
     loss_fn = lossfn
 
@@ -88,16 +45,11 @@ def train(model, args, dataset) -> MVAdapt:
     data_loader = DataLoader(dataset, 
                          batch_size=args.batch_size, 
                          shuffle=True, 
-                         num_workers=4, 
+                        #  num_workers=os.cpu_count() - 8,  # type: ignore
                          pin_memory=True, 
-                         generator=g_cuda, 
-                         prefetch_factor=2)
-
-    # Simulated annealing parameters
-    initial_temperature = 100
-    cooling_rate = 0.9
-    temperature = initial_temperature
-    min_temperature = 1e-3
+                         pin_memory_device=args.device,
+                        #  generator=g_cuda, 
+                        )
 
     for epoch in range(args.epochs):
         model.train()
@@ -109,11 +61,11 @@ def train(model, args, dataset) -> MVAdapt:
         progress_bar = tqdm(data_loader, desc=f"Epoch {epoch + 1}")
 
         for data in progress_bar:
-            gt_wp = data['gt_waypoint'].to(args.device, dtype=torch.float32)
-            x = data['scene_features'].to(args.device, dtype=torch.float32)
-            phys = data['physics_params'].to(args.device, dtype=torch.float32)
-            gear = data['gear_params'].to(args.device, dtype=torch.float32)
-            target = data['target_point'].to(args.device, dtype=torch.float32)
+            gt_wp = data['gt_waypoint'].to(args.device, dtype=torch.float32, non_blocking=True)
+            x = data['scene_features'].to(args.device, dtype=torch.float32, non_blocking=True)
+            phys = data['physics_params'].to(args.device, dtype=torch.float32, non_blocking=True)
+            gear = data['gear_params'].to(args.device, dtype=torch.float32, non_blocking=True)
+            target = data['target_point'].to(args.device, dtype=torch.float32, non_blocking=True)
             
             optimizer.zero_grad()
             predicted = model.forward(x, target, phys, gear)
@@ -131,40 +83,8 @@ def train(model, args, dataset) -> MVAdapt:
 
         avg_loss = total_loss / len(data_loader)
         avg_accuracy = total_correct / total_samples
-        wandb.log({"epoch": epoch + 1, "train_loss": avg_loss, "train_accuracy": avg_accuracy})
+        # wandb.log({"epoch": epoch + 1, "train_loss": avg_loss, "train_accuracy": avg_accuracy})
         print(f"Epoch {epoch + 1}, Avg Loss: {avg_loss:.4f}, Total Loss: {total_loss:.4f}, Accuracy: {avg_accuracy:.4f}")
-
-        # # Simulated annealing step
-        # if temperature > min_temperature:
-        #     with torch.no_grad():
-        #         for param in model.parameters():
-        #             # Save the current weights
-        #             original_weights = param.clone()
-
-        #             # Perturb weights with random noise
-        #             noise = torch.randn_like(param) * (temperature / initial_temperature)
-        #             param.add_(noise)
-
-        #             # Compute the new loss
-        #             perturbed_loss = 0
-        #             for gt, pred, phys, g in data_loader:
-        #                 predicted = model(pred, phys, g)
-        #                 perturbed_loss += loss_fn(predicted, gt).item()
-
-        #             # Acceptance probability
-        #             delta_loss = perturbed_loss - total_loss
-        #             acceptance_prob = torch.exp(torch.tensor(-delta_loss / temperature)) if delta_loss > 0 else torch.tensor(1.0)
-
-        #             # Decide whether to accept or reject the perturbed weights
-        #             if torch.rand(1).item() > acceptance_prob:
-        #                 param.copy_(original_weights)  # Reject the perturbation
-
-        #     # Cool down the temperature
-        #     temperature *= cooling_rate
-        #     print(f"Simulated Annealing: Temperature decreased to {temperature:.4f}")
-
-    return model
-
 
 def validate(model, args, dataset) -> None:
     print("Validating Model")
@@ -176,7 +96,13 @@ def validate(model, args, dataset) -> None:
     
     g_cuda = torch.Generator(device='cpu')
     g_cuda.manual_seed(torch.initial_seed())
-    data_loader = DataLoader(dataset, batch_size=args.batch_size, shuffle=True, generator=g_cuda, num_workers=4)
+    # data_loader = DataLoader(dataset, batch_size=args.batch_size, shuffle=True, generator=g_cuda, num_workers=os.cpu_count()-8) # type: ignore
+    data_loader = DataLoader(dataset, 
+                             batch_size=args.batch_size, 
+                             pin_memory=True,
+                             pin_memory_device=args.device,
+                            #  num_workers=os.cpu_count()-8 # type: ignore
+                             shuffle=True, )
     
     model.eval()
     with torch.no_grad():
@@ -219,10 +145,12 @@ def main():
     parser.add_argument("--verbose", type=bool, default=True)
     parser.add_argument("--debug", type=bool, default=False)
     parser.add_argument("--version", type=str, default="v1")
+    parser.add_argument("--remove_crashed", type=bool, default=False)
+    parser.add_argument("--remove_imperfect", type=bool, default=False)
+    parser.add_argument("--move_dup_dir", type=str, default=None)
 
     args = parser.parse_args()
     
-    master_set = MVAdaptDataset(args.root_dir)
     train_set = MVAdaptDataset(args.root_dir)
     test_set = MVAdaptDataset(args.root_dir)
     
@@ -231,8 +159,6 @@ def main():
         try:
             train_set.load(f"{args.load_data}_train.pkl")
             test_set.load(f"{args.load_data}_test.pkl")
-            # train_set.load(args.load_data)
-            # test_set.load(args.load_data)
             loaded = True
         except FileNotFoundError as e:
             print(f"File not found: {e}")
@@ -243,22 +169,16 @@ def main():
             loaded = False
             
     if not loaded:
-        train_set.initialize(args, 'train')
-        test_set.initialize(args, 'val')
-        ###################################################################################################
-        train_set.save('/home/ohs-dyros/gitRepo/MVAdapt/dataset/train_set.pkl')
-        test_set.save('/home/ohs-dyros/gitRepo/MVAdapt/dataset/test_set.pkl')
-        train_set = train_set.sample_data_per_vehicle(50000, exclude=[1, 2, 3, 5, 7, 8, 9, 11, 12, 15, 18, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 35])
-        test_set = test_set.sample_data_per_vehicle(50000, exclude=[1, 2, 3, 5, 7, 8, 9, 11, 12, 15, 18, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 35])
-        ###################################################################################################
+        train_set.initialize(args, 'train', args.remove_crashed, args.remove_imperfect, args.move_dup_dir)
+        test_set.initialize(args, 'val', args.remove_crashed, args.remove_imperfect, args.move_dup_dir)
         
     if args.save_data is not None and args.save_data != "None":
         train_set.save(args.save_data + "_train.pkl")
         test_set.save(args.save_data + "_test.pkl")
         
-    wandb.init(project="MVAdapt-Training", config=args.__dict__)
+    # wandb.init(project="MVAdapt-Training", config=args.__dict__)
     loaded = False
-    model = importlib.import_module(f'team_code_mvadapt.mvadapt_{args.version}').MVAdapt(train_set.config, args)
+    model = importlib.import_module(f'team_code_mvadapt.mvadapt_{args.version}').MVAdapt(train_set.config, args).to(args.device)
     if args.load_model is not None and args.load_model != "None":
         try:
             print("Loading Model")
@@ -273,6 +193,7 @@ def main():
             loaded = False
             
     if not loaded:
+        print("Train Model")
         train(model, args, train_set)
         
     if args.save_model is not None and args.save_model != "None":
@@ -283,9 +204,9 @@ def main():
     
     if args.debug:
         print("Exporting debug data")
-        model.debug(os.environ("WORK_DIR", '.') + f'/debug_{args.version}', args.base_model, train_set, 200)
+        model.debug(os.getenv("WORK_DIR", '.') + f'/debug_{args.version}', args.base_model, train_set, 200)
     
-    wandb.finish()
+    # wandb.finish()
 
 if __name__ == "__main__":
     main()

@@ -52,7 +52,7 @@ class RouteIndexer():
         if data:
             checkpoint_dict = dictor(data, '_checkpoint')
             if checkpoint_dict and 'progress' in checkpoint_dict:
-                progress = checkpoint_dict['progress']
+                progress = checkpoint_dict['progress']  # type: ignore
                 if not progress:
                     current_route = 0
                 else:

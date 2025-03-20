@@ -432,7 +432,7 @@ class RouteScenario(BasicScenario):
             town_amount = {
                 "Town01": 70,
                 "Town02": 50,
-                "Town03": 120,
+                "Town03": 100,
                 "Town04": 200,
                 "Town05": 120,
                 "Town06": 150,

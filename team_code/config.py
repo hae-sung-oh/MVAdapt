@@ -124,6 +124,7 @@ class GlobalConfig:
     self.lidar_rotation_frequency = 10  # Number of Hz at which the Lidar operates
     # Lower bound of the LiDAR field of view
     self.lidar_lower_fov = self.vehicle_config["lidar_lower_fov"] if "lidar_lower_fov" in self.vehicle_config else -30.0  
+    self.lidar_upper_fov = self.vehicle_config["lidar_upper_fov"] if "lidar_upper_fov" in self.vehicle_config else 10.0  
     # Number of points the LiDAR generates per second.
     # Change in proportion to the rotation frequency.
     self.lidar_points_per_second = 600000
@@ -134,6 +135,9 @@ class GlobalConfig:
     self.camera_width = 1024  # Camera width in pixel during data collection
     self.camera_height = 256  # Camera height in pixel during data collection
     self.camera_fov = 110
+    
+    # Mask out ego vehicle in the lidar point cloud
+    self.filter_ego_lidar = True
 
     # -----------------------------------------------------------------------------
     # Dataloader
@@ -548,7 +552,7 @@ class GlobalConfig:
     self.dense_route_planner_max_distance = 50.0
     self.action_repeat = 1  # Number of times we repeat the networks action.
     # Number of frames after which the creep controller starts triggering. 1100 is larger than wait time at red light.
-    self.stuck_threshold = 2000 / self.action_repeat
+    self.stuck_threshold = 1100 / self.action_repeat
     self.creep_duration = 20 / self.action_repeat  # Number of frames we will creep forward
     self.creep_throttle = 0.4
     # CARLA needs some time to initialize in which the cars actions are blocked.
@@ -609,6 +613,7 @@ class GlobalConfig:
     
     self.lidar_pos = self.vehicle_config["lidar_pos"]
     self.lidar_lower_fov = self.vehicle_config["lidar_lower_fov"] if "lidar_lower_fov" in self.vehicle_config else -30.0
+    self.lidar_upper_fov = self.vehicle_config["lidar_upper_fov"] if "lidar_upper_fov" in self.vehicle_config else 10.0
     self.camera_pos = self.vehicle_config["camera_pos"]
 
   def initialize(self, root_dir='', setting='all', vehicle_index=None, verbose=True, **kwargs):

@@ -24,7 +24,7 @@ from config import GlobalConfig
 from data import CARLA_Data
 from nav_planner import RoutePlanner
 from nav_planner import extrapolate_waypoint_route
-from team_code_mvadapt.mvadapt_v3 import MVAdapt
+from team_code_mvadapt.mvadapt_v4 import MVAdapt
 from team_code_mvadapt.mvadapt_data import MVAdaptDataset
 
 from filterpy.kalman import MerweScaledSigmaPoints
@@ -203,12 +203,12 @@ class SensorAgent(autonomous_agent.AutonomousAgent):
     self.mvdata = MVAdaptDataset(self.config.root_dir, self.config, self.vehicle_config)
     self.adapt = os.getenv('ADAPT', 0)
     if self.adapt:
-      print('MVAdapt is on.')
       self.mvadapt = MVAdapt(self.config)
       try:
         self.mvadapt.load(os.getenv('ADAPT_PATH'))
+        print(f'MVAdapt is on: {os.getenv("ADAPT_PATH")}')
       except Exception as e:
-        print(f'Could not load MVAdapt model. Using random weights: {e}')
+        print(f'Could not load MVAdapt model. Using baseline model: {e}')
       self.physics_prop, self.gear_prop = self.mvdata.load_physics_data(self.vehicle_index)
       
     if os.getenv("STREAM", 0):
@@ -299,6 +299,7 @@ class SensorAgent(autonomous_agent.AutonomousAgent):
           'pitch': self.config.lidar_rot[1],
           'yaw': self.config.lidar_rot[2],
           'lower_fov': self.config.lidar_lower_fov,
+          'upper_fov': self.config.lidar_upper_fov,
           'id': 'lidar'
       })
 
@@ -463,28 +464,29 @@ class SensorAgent(autonomous_agent.AutonomousAgent):
 
         lidar_histogram = lidar_histogram.to(self.device, dtype=torch.float32)
         
-        # Exclude points inside of the ego vehicle
-        _, _, H, W = lidar_histogram.shape
-        ego_x = W // 2 
-        ego_y = H // 2 
-        scale_factor = 2.0
-        loc_pixels_per_meter = self.config.pixels_per_meter * scale_factor
-        ego_extent_x_px = int(self.config.ego_extent_x * loc_pixels_per_meter)
-        ego_extent_y_px = int(self.config.ego_extent_y * loc_pixels_per_meter)
-        y_indices, x_indices = np.meshgrid(np.arange(H), np.arange(W), indexing='ij')
+        if self.config.filter_ego_lidar:
+          # Exclude points inside of the ego vehicle
+          _, _, H, W = lidar_histogram.shape
+          ego_x = W // 2 
+          ego_y = H // 2 
+          scale_factor = 2.0
+          loc_pixels_per_meter = self.config.pixels_per_meter * scale_factor
+          ego_extent_x_px = int(self.config.ego_extent_x * loc_pixels_per_meter + 2.5)
+          ego_extent_y_px = int(self.config.ego_extent_y * loc_pixels_per_meter + 2.5)
+          y_indices, x_indices = np.meshgrid(np.arange(H), np.arange(W), indexing='ij')
 
-        mask_ego = (
-            (x_indices > ego_x - ego_extent_x_px // 2) & (x_indices < ego_x + ego_extent_x_px // 2) &
-            (y_indices > ego_y - ego_extent_y_px // 2) & (y_indices < ego_y + ego_extent_y_px // 2)
-        )
+          mask_ego = (
+              (x_indices > ego_x - ego_extent_x_px // 2) & (x_indices < ego_x + ego_extent_x_px // 2) &
+              (y_indices > ego_y - ego_extent_y_px // 2) & (y_indices < ego_y + ego_extent_y_px // 2)
+          )
 
-        # Convert to tensor and apply the mask
-        mask_ego_tensor = torch.from_numpy(mask_ego).to(self.device)  # Move to the same device as lidar_histogram
-        
-        # Apply the mask by setting values to zero
-        lidar_histogram[:, :, mask_ego_tensor] = 0
-        lidar_bev.append(lidar_histogram)
-        lidar_bev = torch.cat(lidar_bev, dim=1) # type: ignore
+          # Convert to tensor and apply the mask
+          mask_ego_tensor = torch.from_numpy(mask_ego).to(self.device)  # Move to the same device as lidar_histogram
+          
+          # Apply the mask by setting values to zero
+          lidar_histogram[:, :, mask_ego_tensor] = 0
+          lidar_bev.append(lidar_histogram)
+          lidar_bev = torch.cat(lidar_bev, dim=1) # type: ignore
 
     if self.config.backbone not in ('aim'):
       self.lidar_last = deepcopy(tick_data['lidar'])

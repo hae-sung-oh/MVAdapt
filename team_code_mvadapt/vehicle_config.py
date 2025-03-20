@@ -54,16 +54,19 @@ class VehicleConfig:
             {   # 6
             "vehicle_name": "vehicle.carlamotors.carlacola",
             "vehicle_extent": [2.601919174194336, 1.3134948015213013, 1.2337223291397095],
-            "camera_pos": [2.5, 0.0, 2.0],
-            "lidar_pos": [0.0, 0.0, 2.7],
+            "camera_pos": [0.0, 0.0, 2.0],
+            # "lidar_pos": [0.0, 0.0, 2.7],
+            "lidar_pos": [-2.0, 0.0, 3.0],
             "physics": self.physics_list[6]
             },
             {   # 7 # modified lidar
             "vehicle_name": "vehicle.carlamotors.firetruck",
             "vehicle_extent": [4.234020709991455, 1.4455441236495972, 1.9137061834335327],
             "camera_pos": [4.0, 0.0, 2.0],
-            "lidar_pos": [4.0, 0.0, 3.5],
-            'lidar_lower_fov': -45.0,
+            # "lidar_pos": [4.0, 0.0, 3.5],
+            "lidar_pos": [0.0, 0.0, 8.0],
+            'lidar_lower_fov': -90.0,
+            "lidar_upper_fov": 50.0,
             "physics": self.physics_list[7]
             },
             {   # 8
@@ -261,7 +264,7 @@ class VehicleConfig:
             "vehicle_name": "vehicle.volkswagen.t2",
             "vehicle_extent": [2.2402184009552, 1.034657597541809, 1.0188959836959839],
             "camera_pos": [1.5, 0.0, 2.0],
-            "lidar_pos": [0.0, 0.0, 2.5],
+            "lidar_pos": [1.5, 0.0, 2.5],
             "physics": self.physics_list[35]
             },
             {   # 36 # 2 wheels

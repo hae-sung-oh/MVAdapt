@@ -238,7 +238,7 @@ class RouteScenario(BasicScenario):
 
         # ego_vehicle = CarlaDataProvider.request_new_actor("vehicle.lincoln.mkz_2017", elevate_transform, rolename="hero")
         ego_vehicle = CarlaDataProvider.request_new_actor(self.vehicle_config.config_list[self.index]["vehicle_name"], elevate_transform, rolename="hero")
-        if os.environ.get("RANDOM_PHYSICS", 0):
+        if int(os.environ.get("RANDOM_PHYSICS", 0)) == 1:
             self.vehicle_config.sample_random_physics(ego_vehicle, self.index)
         
         spectator = CarlaDataProvider.get_world().get_spectator()

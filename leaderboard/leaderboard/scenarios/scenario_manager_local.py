@@ -12,7 +12,6 @@ It must not be modified and is for reference only!
 
 from __future__ import print_function
 from multiprocessing import shared_memory
-from operator import is_
 import os
 import signal
 import sys
@@ -79,24 +78,27 @@ class ScenarioManager(object):
         self.start_system_time = None
         self.end_system_time = None
         self.end_game_time = None
-        self.stream = os.getenv("STREAM", 0)
+        self.stream = int(os.getenv("STREAM", 0))
 
         # Register the scenario tick as callback for the CARLA world
         # Use the callback_id inside the signal handler to allow external interrupts
         signal.signal(signal.SIGINT, self.signal_handler)
         
-        if self.stream:
+        if self.stream == 1:
             pygame.init()
-            self.screen = pygame.display.set_mode((1024, 1792))
+            self.screen = pygame.display.set_mode((1024, 1792), pygame.RESIZABLE)
             self.clock = pygame.time.Clock()
             try:
-                self.shm = shared_memory.SharedMemory(name='pygame_image', create=True, size=1024*1792*3)
+                split = str(os.getenv("SPLIT", "trained"))
+                vehicle_index = str(os.getenv("VEHICLEINDEX", "0"))
+                self.shm = shared_memory.SharedMemory(name=f'pygame_image_{split}_{vehicle_index}', create=True, size=1024*1792*3)
+                print(f"Created shared memory: pygame_image_{split}_{vehicle_index}")
             except FileExistsError:
-                print("Using existing shared memory.")
-                self.shm = shared_memory.SharedMemory(name='pygame_image')
+                print(f"Using existing shared memory: pygame_image_{split}_{vehicle_index}")
+                self.shm = shared_memory.SharedMemory(name=f'pygame_image_{split}_{vehicle_index}')
             
     def __del__(self):
-        if self.stream:
+        if self.stream == 1:
             self.shm.close()
             self.shm.unlink()
             pygame.quit()
@@ -156,16 +158,22 @@ class ScenarioManager(object):
             if timestamp:
                 self._tick_scenario(timestamp)
         
-            if self.stream:
+            if self.stream == 1:
                 for event in pygame.event.get():
                     if event.type == pygame.QUIT:
                         pygame.quit()
+                        
+                    elif event.type == pygame.VIDEORESIZE:
+                        self.screen = pygame.display.set_mode((event.w, event.h), pygame.RESIZABLE)
                 
                 data = bytes(self.shm.buf[:1024*1792*3])
                 img = Image.frombytes('RGB', (1024, 1792), data)
-                
+
                 pygame_img = pygame.image.fromstring(img.tobytes(), img.size, img.mode)
-                self.screen.blit(pygame_img, (0, 0))
+
+                scaled_img = pygame.transform.scale(pygame_img, self.screen.get_size())
+
+                self.screen.blit(scaled_img, (0, 0))
                 pygame.display.flip()
                 self.clock.tick(30)
 

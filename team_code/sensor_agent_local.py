@@ -24,7 +24,11 @@ from config import GlobalConfig
 from data import CARLA_Data
 from nav_planner import RoutePlanner
 from nav_planner import extrapolate_waypoint_route
-from team_code_mvadapt.mvadapt_v4 import MVAdapt
+version = os.getenv("VERSION", "v4")
+import importlib
+module = importlib.import_module(f'team_code_mvadapt.mvadapt_{version}')
+MVAdapt = getattr(module, 'MVAdapt')
+# from team_code_mvadapt.mvadapt_v7 import MVAdapt
 from team_code_mvadapt.mvadapt_data import MVAdaptDataset
 
 from filterpy.kalman import MerweScaledSigmaPoints
@@ -131,7 +135,7 @@ class SensorAgent(autonomous_agent.AutonomousAgent):
           # Model was trained with Sync. Batch Norm.
           # Need to convert it otherwise parameters will load wrong.
           net = torch.nn.SyncBatchNorm.convert_sync_batchnorm(net)
-        state_dict = torch.load(os.path.join(path_to_conf_file, file),weights_only=True, map_location=self.device)
+        state_dict = torch.load(os.path.join(path_to_conf_file, file), weights_only=False, map_location=self.device)
 
         net.load_state_dict(state_dict, strict=False)
         net.cuda(device=self.device)
@@ -201,8 +205,9 @@ class SensorAgent(autonomous_agent.AutonomousAgent):
     self.was_stuck = False  # Tracks if the agent was stuck in the last step
     
     self.mvdata = MVAdaptDataset(self.config.root_dir, self.config, self.vehicle_config)
-    self.adapt = os.getenv('ADAPT', 0)
-    if self.adapt:
+    self.adapt = int(os.getenv('ADAPT', 0))
+    self.stream = int(os.getenv("STREAM", 0))
+    if self.adapt == 1:
       self.mvadapt = MVAdapt(self.config)
       try:
         self.mvadapt.load(os.getenv('ADAPT_PATH'))
@@ -211,15 +216,18 @@ class SensorAgent(autonomous_agent.AutonomousAgent):
         print(f'Could not load MVAdapt model. Using baseline model: {e}')
       self.physics_prop, self.gear_prop = self.mvdata.load_physics_data(self.vehicle_index)
       
-    if os.getenv("STREAM", 0):
-      self.shm = shared_memory.SharedMemory(name='pygame_image')
-      
+    if self.stream == 1:
+      try:
+        self.shm = shared_memory.SharedMemory(name=f'pygame_image_{os.getenv("SPLIT", "trained")}_{os.getenv("VEHICLEINDEX", "0")}')
+      except FileNotFoundError:
+        self.shm = shared_memory.SharedMemory(name=f'pygame_image_{os.getenv("SPLIT", "trained")}_{os.getenv("VEHICLEINDEX", "0")}', create=True, size=1024*1792*3)
+        
   def update_physics(self):
     print('Updating physics properties')
     try:
-      with open(str(os.getenv('RANDOM_PHYSICS_PATH')), 'wb') as f:
+      with open(os.getenv('RANDOM_PHYSICS_PATH'), 'wb') as f:
         pickle.dump(self.vehicle_config.config_list[self.vehicle_index], f)
-      print(f'Physics properties saved: {str(os.getenv("RANDOM_PHYSICS_PATH"))}')
+      print(f'Physics properties saved: {os.getenv("RANDOM_PHYSICS_PATH")}')
     except Exception as e:
       print(f'Could not save physics properties: {e}')
     self.physics_prop, self.gear_prop = self.mvdata.load_physics_data(self.vehicle_index)
@@ -568,7 +576,8 @@ class SensorAgent(autonomous_agent.AutonomousAgent):
       pred_wps = []
       for i in range(self.model_count):
         pred_wps.append(self.mvadapt.inference(
-          x=wp_features[i],
+          rgb=tick_data['rgb'],
+          scene_feature=wp_features[i],
           target_point=tick_data['target_point'],
           physics_params=torch.tensor(self.physics_prop, dtype=torch.float32).to(self.device).unsqueeze(0),
           gear_params=torch.tensor(self.gear_prop, dtype=torch.float32).to(self.device).unsqueeze(0)
@@ -576,7 +585,7 @@ class SensorAgent(autonomous_agent.AutonomousAgent):
       
     # Visualize the output of the last model
     # if compute_debug_output:
-    if os.getenv("DEBUG_PATH", None) is not None or os.getenv("STREAM", 0):
+    if os.getenv("DEBUG_PATH", None) is not None or self.stream == 1:
       if self.config.use_controller_input_prediction:
         prob_target_speed = F.softmax(pred_target_speed, dim=1)
       else:
@@ -702,7 +711,7 @@ class SensorAgent(autonomous_agent.AutonomousAgent):
     else:
       self.control = control
       
-    if os.getenv("STREAM", 0):
+    if self.stream == 1:
       self.shm.buf[:len(debug_image.tobytes())] = debug_image.tobytes()
       time.sleep(0.01)
 

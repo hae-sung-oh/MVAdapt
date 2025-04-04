@@ -13,6 +13,7 @@ Provisional code to evaluate Autonomous Agents for the CARLA Autonomous Driving 
 from __future__ import print_function
 
 import pickle
+import trace
 import traceback
 import argparse
 from argparse import RawTextHelpFormatter
@@ -25,7 +26,6 @@ import sys
 import json
 
 import pygame
-from wandb import agent
 
 import carla
 import signal
@@ -58,7 +58,7 @@ sensors_to_icons = {
     "sensor.camera.semantic_segmentation": "carla_camera",  # for datagen
     "sensor.camera.depth": "carla_camera",  # for datagen
 }
-
+FAILED_LOG = ["Failed - Agent couldn't be set up", "Failed - Agent took too long to setup", "Failed - Agent crashed", "Failed - Simulation crashed"]
 
 class LeaderboardEvaluator(object):
     """
@@ -312,6 +312,15 @@ class LeaderboardEvaluator(object):
             self._cleanup(result)
             return False
             # sys.exit(-1)
+        
+        except RuntimeError as e:
+            traceback.print_exc()
+            crash_message = "Agent took too long to setup"
+            entry_status = "Crashed"
+            
+            result = self._register_statistics(config, route_date_string, args.checkpoint, entry_status, crash_message)
+            self._cleanup(result)
+            return False
 
         except Exception as e:
             # The agent setup has failed -> start the next route
@@ -324,6 +333,7 @@ class LeaderboardEvaluator(object):
             result = self._register_statistics(config, route_date_string, args.checkpoint, entry_status, crash_message)
             self._cleanup(result)
             return False
+        
 
         print("\033[1m> Loading the world\033[0m")
 
@@ -343,7 +353,7 @@ class LeaderboardEvaluator(object):
             scenario = RouteScenario(world=self.world, vehicle_config=self.vehicle_config, config=config, debug_mode=args.debug, vehicle_index=args.index)
             self.statistics_manager.set_scenario(scenario.scenario)
             
-            if os.environ.get("RANDOM_PHYSICS", 0):
+            if int(os.environ.get("RANDOM_PHYSICS", 0)) == 1:
                 self.agent_instance.update_physics()
 
             # Night mode
@@ -426,7 +436,7 @@ class LeaderboardEvaluator(object):
     def check_resume(self, args, index, success_list, data):
         try:
             log = data["_checkpoint"]["global_record"]["meta"]["exceptions"][index][2]
-            resume = (int(args.resume) == 1 and int(args.resume_failed) == 1 and log != "Completed") or (success_list[index] == False)
+            resume = (int(args.resume) == 1 and int(args.resume_failed) == 1 and log in FAILED_LOG) or (success_list[index] == False)
         except Exception:
             resume = True
             log = None
@@ -439,7 +449,6 @@ class LeaderboardEvaluator(object):
         
         while route_indexer.peek():
             resume, log = self.check_resume(args, route_indexer._index, success_list, data)
-            print(resume, log)
             if resume:
                 if log is not None:
                     print(f"Resume: RouteScenario_{route_indexer._index}: {log}")

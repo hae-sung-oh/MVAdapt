@@ -10,10 +10,8 @@ class ForwardGearEncoder(nn.Module):
         super(ForwardGearEncoder, self).__init__()
         self.fc = nn.Sequential(
             nn.Linear(input_dim, latent_dim),
-            nn.Dropout(0.2),
-            nn.ReLU(),
+            nn.ELU(),
             nn.Linear(latent_dim, output_dim),
-            nn.Dropout(0.2),
         ).to(device)
         
     def forward(self, x):
@@ -28,10 +26,8 @@ class PhysicsEncoder(nn.Module):
         self.gear_encoder = ForwardGearEncoder(input_dim=gear_length, latent_dim=latent_dim, output_dim=gear_dim).to(device)
         self.encoder = nn.Sequential(
             nn.Linear(input_dim + gear_dim, 64),
-            nn.Dropout(0.2),
-            nn.ReLU(),
+            nn.ELU(),
             nn.Linear(64, latent_dim),
-            nn.Dropout(0.2),
         )
     
     def forward(self, physics_params, gear_params):
@@ -44,43 +40,51 @@ class PhysicsEncoder(nn.Module):
         physics_params = torch.cat((physics_params, gear_latent), dim=1)
         return self.encoder(physics_params)
     
-class CrossAttentionTransformer(nn.Module):
-    def __init__(self, scene_dim, physics_dim, num_heads=4, ff_dim=512, target_points=8):
-        super().__init__()
-        self.target_points = target_points
-        self.scene_dim = scene_dim
-        self.scene_k = nn.Linear(scene_dim, scene_dim)
-        self.physics_q = nn.Linear(physics_dim, scene_dim) 
-        self.physics_v = nn.Linear(physics_dim, scene_dim)  
-        self.cross_attention = nn.MultiheadAttention(embed_dim=scene_dim, num_heads=num_heads)
-        self.feed_forward = nn.Sequential(
-            nn.Linear(scene_dim, ff_dim),
-            nn.Dropout(0.2),
+class ImageTransformerEncoder(nn.Module):
+    def __init__(self, img_size_w, img_size_h, out_dim, patch_size=32, in_channels=3, emb_dim=256, num_layers=6, num_heads=8):
+        super(ImageTransformerEncoder, self).__init__()
+        H, W = img_size_w, img_size_h
+        self.P = patch_size
+        self.num_patches = (H // self.P) * (W // self.P)  
+        self.patch_dim = self.P * self.P * in_channels  
+
+        self.proj = nn.Linear(self.patch_dim, emb_dim)
+        self.cls_token = nn.Parameter(torch.randn(1, 1, emb_dim))
+        self.pos_embed = nn.Parameter(torch.randn(1, self.num_patches + 1, emb_dim))
+
+        encoder_layer = nn.TransformerEncoderLayer(d_model=emb_dim, nhead=num_heads, dim_feedforward=1024, dropout=0.1, batch_first=True)
+        self.transformer = nn.TransformerEncoder(encoder_layer, num_layers=num_layers)
+
+        self.mlp = nn.Sequential(
+            nn.Linear(emb_dim, 256),
             nn.ReLU(),
-            nn.Linear(ff_dim, scene_dim),
-            nn.Dropout(0.2),
+            nn.Linear(256, out_dim)
         )
-    
-    def forward(self, scene_embedding, physics_embedding):
-        bs = scene_embedding.size(0)
-        scene_embedding = self.scene_k(scene_embedding)
-        physics_q = self.physics_q(physics_embedding).reshape(bs, -1, self.scene_dim).repeat(1, self.target_points, 1)
-        
-        adapted_scene, _ = self.cross_attention(physics_q, scene_embedding, scene_embedding)
-        
-        adapted_scene = adapted_scene + physics_q
-        adapted_scene = self.feed_forward(adapted_scene) + adapted_scene
-        return adapted_scene
+
+    def forward(self, x):
+        B, C, H, W = x.shape
+        P = self.P 
+
+        x = x.unfold(2, P, P).unfold(3, P, P)  
+        x = x.permute(0, 2, 3, 1, 4, 5).contiguous().reshape(B, -1, P * P * C) 
+        x = self.proj(x) 
+        cls_tokens = self.cls_token.expand(B, -1, -1)  
+        x = torch.cat((cls_tokens, x), dim=1) 
+        x = x + self.pos_embed
+        x = self.transformer(x) 
+        cls_embedding = x[:, 0, :]
+        return self.mlp(cls_embedding)
     
 class PhysicsAttentionEncoder(nn.Module):
     def __init__(self, scene_dim, physics_dim, target_points=8):
+        super(PhysicsAttentionEncoder, self).__init__()
         self.scene_encoder = nn.Sequential(
             nn.Linear(scene_dim, scene_dim),
             nn.ELU()
         )
         self.physics_attention = nn.Sequential(
             nn.Linear(physics_dim, physics_dim),
-            nn.LayerNorm(),
+            nn.LayerNorm(physics_dim),
             nn.ELU(),
             nn.Linear(physics_dim, scene_dim),
             nn.Tanh(),
@@ -89,8 +93,9 @@ class PhysicsAttentionEncoder(nn.Module):
         self.target_points = target_points
     
     def forward(self, scene_embedding, physics_embedding):
+        bs = scene_embedding.size(0)
         scene_embedding = self.scene_encoder(scene_embedding)
-        physics_attention = self.physics_attention(physics_embedding).repeat(1, self.target_points, 1)
+        physics_attention = self.physics_attention(physics_embedding).reshape(bs, 1, -1).repeat(1, self.target_points, 1)
         scene_embedding = scene_embedding * physics_attention
         return scene_embedding
     
@@ -106,6 +111,9 @@ class MVAdapt(nn.Module):
         self.gear_length = 27
         self.latent_dim = 128
         self.gear_dim = 4
+        self.image_width = 1024
+        self.image_height = 256
+        self.image_embedding_dim = 256
         
         self.encoder = nn.Linear(2, self.hidden_size).to(self.device)
         
@@ -120,24 +128,40 @@ class MVAdapt(nn.Module):
         
         self.physics_hidden = nn.Sequential(
             nn.Linear(self.latent_dim, self.hidden_size),
-            nn.Dropout(0.2),
-            nn.ReLU(),
+            nn.ELU(),
             nn.Linear(self.hidden_size, self.hidden_size),
-            nn.Dropout(0.2),
         ).to(self.device)
         
         # self.transformer_encoder = CrossAttentionTransformer(scene_dim=self.input_dim, physics_dim=self.latent_dim).to(self.device)
         self.physics_attention_encoder = PhysicsAttentionEncoder(scene_dim=self.input_dim, physics_dim=self.latent_dim).to(self.device)
         
+        self.image_attention_encoder = ImageTransformerEncoder(
+            img_size_w=self.image_width,
+            img_size_h=self.image_height,
+            out_dim=self.image_embedding_dim
+        ).to(self.device)
+        
+        self.core_net = nn.Sequential(
+            nn.Linear(self.input_dim + self.image_embedding_dim, 512),
+            nn.LayerNorm(512),
+            nn.ELU(),
+            nn.Linear(512, 256),
+            nn.ELU(),
+            nn.Linear(256, self.input_dim),
+        ).to(self.device)
+        
         self.decoder = nn.Linear(self.hidden_size, 2).to(self.device)
 
-    def forward(self, image, x, target_point, physics_params, gear_params):
-        if x.dim() == 1:
-            x = x.unsqueeze(0)
-        if x.size()[-1] != 2:
-            x = x.reshape(-1, self.waypoints, self.input_dim)
+    def forward(self, rgb, scene_feature, target_point, physics_params, gear_params):
+        if scene_feature.dim() == 1:
+            scene_feature = scene_feature.unsqueeze(0)
+        if scene_feature.size()[-1] != 2:
+            scene_feature = scene_feature.reshape(-1, self.waypoints, self.input_dim)
 
-        bs = x.size(0)
+        bs = scene_feature.size(0)
+        
+        if rgb.dim() == 1:
+            rgb = rgb.unsqueeze(0)
         
         if target_point.dim() == 1:
             target_point = target_point.unsqueeze(0)
@@ -149,15 +173,14 @@ class MVAdapt(nn.Module):
             gear_params = gear_params.unsqueeze(0)
 
         physics_latent = self.physics_encoder(physics_params, gear_params).unsqueeze(0)
-        combined_scene = self.physics_attention_encoder(x, physics_latent)
-        # TODO
-        image_embedding = self.image_attention_encoder(image)
-        conbined_scene = torch.cat((combined_scene, image_embedding), dim=1)
-        conbined_scene = self.core_net(conbined_scene)
-        ###
+        combined_scene = self.physics_attention_encoder(scene_feature, physics_latent)
+        
+        image_embedding = self.image_attention_encoder(rgb).reshape(bs, 1, -1).repeat(1, self.waypoints, 1)
+        combined_scene = torch.cat((combined_scene, image_embedding), dim=2)
+        combined_scene = self.core_net(combined_scene)
         
         z = self.encoder(target_point).unsqueeze(0)
-          
+        
         output, _ = self.gru(combined_scene, z)
         output = output.reshape(bs * self.waypoints, -1)
         output = self.decoder(output).reshape(bs, self.waypoints, 2)
@@ -165,10 +188,10 @@ class MVAdapt(nn.Module):
 
         return output.reshape(-1, self.waypoints * 2)
 
-    def inference(self, x, target_point, physics_params, gear_params):
+    def inference(self, rgb, scene_feature, target_point, physics_params, gear_params):
         self.eval()
         with torch.no_grad():
-            return self.forward(x, target_point, physics_params, gear_params)
+            return self.forward(rgb, scene_feature, target_point, physics_params, gear_params)
         
     def debug(self, path, baseline_path, dataset, max_num=None):
         agent = BasemodelAgent(baseline_path)

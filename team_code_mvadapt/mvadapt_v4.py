@@ -45,7 +45,7 @@ class PhysicsEncoder(nn.Module):
         return self.encoder(physics_params)
     
 class CrossAttentionTransformer(nn.Module):
-    def __init__(self, scene_dim, physics_dim, num_heads=4, ff_dim=512, target_points=8):
+    def __init__(self, scene_dim, physics_dim, num_heads=8, ff_dim=512, target_points=8):
         super().__init__()
         self.target_points = target_points
         self.scene_dim = scene_dim
@@ -109,13 +109,13 @@ class MVAdapt(nn.Module):
 
         self.decoder = nn.Linear(self.hidden_size, 2).to(self.device)
 
-    def forward(self, x, target_point, physics_params, gear_params):
-        if x.dim() == 1:
-            x = x.unsqueeze(0)
-        if x.size()[-1] != 2:
-            x = x.reshape(-1, self.waypoints, self.input_dim)
+    def forward(self, rgb, scene_feature, target_point, physics_params, gear_params):
+        if scene_feature.dim() == 1:
+            scene_feature = scene_feature.unsqueeze(0)
+        if scene_feature.size()[-1] != 2:
+            scene_feature = scene_feature.reshape(-1, self.waypoints, self.input_dim)
 
-        bs = x.size(0)
+        bs = scene_feature.size(0)
         
         if target_point.dim() == 1:
             target_point = target_point.unsqueeze(0)
@@ -127,7 +127,7 @@ class MVAdapt(nn.Module):
             gear_params = gear_params.unsqueeze(0)
 
         physics_latent = self.physics_encoder(physics_params, gear_params).unsqueeze(0)
-        combined_scene = self.transformer_encoder(x, physics_latent)
+        combined_scene = self.transformer_encoder(scene_feature, physics_latent)
         
         z = self.encoder(target_point).unsqueeze(0)
           
@@ -138,10 +138,10 @@ class MVAdapt(nn.Module):
 
         return output.reshape(-1, self.waypoints * 2)
 
-    def inference(self, x, target_point, physics_params, gear_params):
+    def inference(self, rgb, scene_feature, target_point, physics_params, gear_params):
         self.eval()
         with torch.no_grad():
-            return self.forward(x, target_point, physics_params, gear_params)
+            return self.forward(rgb, scene_feature, target_point, physics_params, gear_params)
         
     def debug(self, path, baseline_path, dataset, max_num=None):
         agent = BasemodelAgent(baseline_path)

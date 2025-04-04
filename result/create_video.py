@@ -28,6 +28,7 @@ def create_video(root, args):
         "-i", join(root, "*.png"),  # Input pattern
         "-c:v", "libx264",  # Encode in H.264
         "-pix_fmt", "yuv420p",  # Set pixel format
+        "-loglevel", "fatal",  # Suppress output   
         output_video  # Output video path
     ]
 

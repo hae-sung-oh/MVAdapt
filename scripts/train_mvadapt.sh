@@ -13,7 +13,7 @@ export BASE_MODEL=$AGENTCONFIG
 export DEVICE="cuda:0"
 export EPOCHS=100
 export LR=0.0001
-export BATCH_SIZE=4096
+export BATCH_SIZE=256
 export PROCESS_BATCH=64
 export VERBOSE=true
 export DEBUG=false
@@ -22,7 +22,7 @@ export DEBUG=false
 # export REMOVE_IMPERFECT=true
 # export MOVE_DUP_DIR="${WORK_DIR}/dataset_backup"
 
-export LOAD_DATA="${WORK_DIR}/dataset/mvadapt_dataset_250305"
+export LOAD_DATA="${WORK_DIR}/dataset/mvadapt_dataset_6_7_26"
 export SAVE_DATA="None"
 # export LOAD_DATA="None"
 # export SAVE_DATA="${WORK_DIR}/dataset/mvadapt_dataset_250305"

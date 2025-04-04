@@ -13,7 +13,7 @@ export AGENT="${WORK_DIR}/team_code/sensor_agent_local.py"
 export TRACK="SENSORS"
 export DIRECT=0
 export RESUME=1
-export RESUME_FAILED=0
+export RESUME_FAILED=1
 export DATAGEN=0
 
 # export AGENTCONFIG="${WORK_DIR}/pretrained_models/lav/aim_02_05_withheld_0"

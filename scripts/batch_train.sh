@@ -1,6 +1,6 @@
 #!/bin/bash
 
-VERSION_LIST=("v5" "v6")
+VERSION_LIST=("v8")
 REPEAT=1
 
 for _VERSION in "${VERSION_LIST[@]}"; do

@@ -61,14 +61,15 @@ def train(model, args, dataset):
         progress_bar = tqdm(data_loader, desc=f"Epoch {epoch + 1}")
 
         for data in progress_bar:
-            gt_wp = data['gt_waypoint'].to(args.device, dtype=torch.float32, non_blocking=True)
-            x = data['scene_features'].to(args.device, dtype=torch.float32, non_blocking=True)
+            rgb = data['rgb'].to(args.device, dtype=torch.float32, non_blocking=True)
+            scene_feature = data['scene_features'].to(args.device, dtype=torch.float32, non_blocking=True)
             phys = data['physics_params'].to(args.device, dtype=torch.float32, non_blocking=True)
             gear = data['gear_params'].to(args.device, dtype=torch.float32, non_blocking=True)
             target = data['target_point'].to(args.device, dtype=torch.float32, non_blocking=True)
+            gt_wp = data['gt_waypoint'].to(args.device, dtype=torch.float32, non_blocking=True)
             
             optimizer.zero_grad()
-            predicted = model.forward(x, target, phys, gear)
+            predicted = model.forward(rgb, scene_feature, target, phys, gear)
             loss = loss_fn(predicted, gt_wp)
             loss.backward()
             optimizer.step()
@@ -83,7 +84,7 @@ def train(model, args, dataset):
 
         avg_loss = total_loss / len(data_loader)
         avg_accuracy = total_correct / total_samples
-        # wandb.log({"epoch": epoch + 1, "train_loss": avg_loss, "train_accuracy": avg_accuracy})
+        wandb.log({"epoch": epoch + 1, "train_loss": avg_loss, "train_accuracy": avg_accuracy})
         print(f"Epoch {epoch + 1}, Avg Loss: {avg_loss:.4f}, Total Loss: {total_loss:.4f}, Accuracy: {avg_accuracy:.4f}")
 
 def validate(model, args, dataset) -> None:
@@ -107,13 +108,14 @@ def validate(model, args, dataset) -> None:
     model.eval()
     with torch.no_grad():
         for data in tqdm(data_loader, desc="Validation"):
-            gt_wp = data['gt_waypoint'].to(args.device, dtype=torch.float32)
-            x = data['scene_features'].to(args.device, dtype=torch.float32)
+            rgb = data['rgb'].to(args.device, dtype=torch.float32)
+            scene_feature = data['scene_features'].to(args.device, dtype=torch.float32)
             phys = data['physics_params'].to(args.device, dtype=torch.float32)
             gear = data['gear_params'].to(args.device, dtype=torch.float32)
             target = data['target_point'].to(args.device, dtype=torch.float32)
+            gt_wp = data['gt_waypoint'].to(args.device, dtype=torch.float32)
             
-            predicted = model.inference(x, target, phys, gear)
+            predicted = model.inference(rgb, scene_feature, target, phys, gear)
             loss = loss_fn(predicted, gt_wp)
             total_loss += loss.item()
             
@@ -176,7 +178,7 @@ def main():
         train_set.save(args.save_data + "_train.pkl")
         test_set.save(args.save_data + "_test.pkl")
         
-    # wandb.init(project="MVAdapt-Training", config=args.__dict__)
+    wandb.init(project="MVAdapt-Training", config=args.__dict__)
     loaded = False
     model = importlib.import_module(f'team_code_mvadapt.mvadapt_{args.version}').MVAdapt(train_set.config, args).to(args.device)
     if args.load_model is not None and args.load_model != "None":
@@ -206,7 +208,7 @@ def main():
         print("Exporting debug data")
         model.debug(os.getenv("WORK_DIR", '.') + f'/debug_{args.version}', args.base_model, train_set, 200)
     
-    # wandb.finish()
+    wandb.finish()
 
 if __name__ == "__main__":
     main()

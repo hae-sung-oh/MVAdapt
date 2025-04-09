@@ -285,8 +285,8 @@ class VehicleConfig:
 
         physics = actor.get_physics_control()
 
-        physics.max_rpm = random.uniform(self.config.min_max_rpm, self.config.max_max_rpm)
-        physics.mass = random.uniform(1000, 8000)  
+        physics.max_rpm = physics.max_rpm * random.uniform(0.5, 1.5)
+        physics.mass = physics.mass * random.uniform(0.3, 1.2) 
         physics.center_of_mass = carla.Location(x=random.uniform(-1, 1), y=0.0, z=random.uniform(-1, 1)) 
 
         max_torque = min(random.randint(1, 4), len(physics.torque_curve))

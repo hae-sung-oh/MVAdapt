@@ -61,7 +61,7 @@ if __name__ == "__main__":
         vehicles = [v for v in listdir(join(args.root, split)) if isdir(join(args.root, split, v))]
         
         for vehicle in vehicles:
-            debug = join(args.root, split, vehicle, f"debug_{vehicle[1]}")
+            debug = join(args.root, split, vehicle, f"debug_{vehicle.split('V')[1]}")
             if not isdir(debug):
                 continue
             

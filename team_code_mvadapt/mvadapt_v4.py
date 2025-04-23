@@ -97,14 +97,6 @@ class MVAdapt(nn.Module):
             gear_dim=self.gear_dim
         ).to(self.device)
         
-        self.physics_hidden = nn.Sequential(
-            nn.Linear(self.latent_dim, self.hidden_size),
-            nn.Dropout(0.2),
-            nn.ReLU(),
-            nn.Linear(self.hidden_size, self.hidden_size),
-            nn.Dropout(0.2),
-        ).to(self.device)
-        
         self.transformer_encoder = CrossAttentionTransformer(scene_dim=self.input_dim, physics_dim=self.latent_dim).to(self.device)
 
         self.decoder = nn.Linear(self.hidden_size, 2).to(self.device)
@@ -126,8 +118,8 @@ class MVAdapt(nn.Module):
         if gear_params.dim() == 1:
             gear_params = gear_params.unsqueeze(0)
 
-        physics_latent = self.physics_encoder(physics_params, gear_params).unsqueeze(0)
-        combined_scene = self.transformer_encoder(scene_feature, physics_latent)
+        physics_embedding = self.physics_encoder(physics_params, gear_params).unsqueeze(0)
+        combined_scene = self.transformer_encoder(scene_feature, physics_embedding)
         
         z = self.encoder(target_point).unsqueeze(0)
           

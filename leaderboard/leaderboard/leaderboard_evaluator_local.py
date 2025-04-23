@@ -13,7 +13,7 @@ Provisional code to evaluate Autonomous Agents for the CARLA Autonomous Driving 
 from __future__ import print_function
 
 import pickle
-import trace
+import time
 import traceback
 import argparse
 from argparse import RawTextHelpFormatter
@@ -26,6 +26,7 @@ import sys
 import json
 
 import pygame
+import torch
 
 import carla
 import signal
@@ -274,7 +275,8 @@ class LeaderboardEvaluator(object):
         route_string = pathlib.Path(os.environ.get("ROUTES", "")).stem + "_"
         route_string += f"route{config.index}"
         route_date_string = route_string + "_" + "_".join(map(lambda x: "%02d" % x, (now.month, now.day, now.hour, now.minute, now.second)))
-
+        empty_ram_cache()
+        
         # Set up the user's agent, and the timer to avoid freezing the simulation
         try:
             self._agent_watchdog.start()
@@ -420,7 +422,9 @@ class LeaderboardEvaluator(object):
             scenario.remove_all_actors()
 
             self._cleanup(result)
-
+            empty_ram_cache()
+            clean_carla()
+            
         except Exception as e:
             print("\n\033[91mFailed to stop the scenario, the statistics might be empty:")
             print("> {}\033[0m\n".format(e))
@@ -495,6 +499,17 @@ class LeaderboardEvaluator(object):
         global_stats_record = self.statistics_manager.compute_global_statistics(route_indexer.total)
         StatisticsManager.save_global_record(global_stats_record, self.sensor_icons, route_indexer.total, args.checkpoint)
 
+def empty_ram_cache():
+    # print("Emptying RAM cache")
+    # os.system('sync; sudo sh -c "echo 3 > /proc/sys/vm/drop_caches"')
+    print("Emptying CUDA RAM cache")
+    torch.cuda.empty_cache()
+    
+def clean_carla():
+    print("Cleaning CARLA processes")
+    os.system("kill -9 $(ps aux | grep CarlaUE4-Linux | grep world-port=${PORT} | grep -v grep | awk '{print $2}' | head -n 1) 2>/dev/null")
+    time.sleep(10)
+    
 
 def argument_parser():
     description = "CARLA AD Leaderboard Evaluation: evaluate your Agent in CARLA scenarios\n"
@@ -563,6 +578,7 @@ def main(args):
         result = leaderboard_evaluator.run(args, route_indexer, success_list)
     except KeyError as e:
         print(f"KeyError: {e}")
+        traceback.print_exc()
         result = False
 
     del leaderboard_evaluator

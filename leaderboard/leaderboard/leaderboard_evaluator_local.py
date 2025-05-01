@@ -423,7 +423,7 @@ class LeaderboardEvaluator(object):
 
             self._cleanup(result)
             empty_ram_cache()
-            clean_carla()
+            # clean_carla()
             
         except Exception as e:
             print("\n\033[91mFailed to stop the scenario, the statistics might be empty:")
@@ -508,7 +508,7 @@ def empty_ram_cache():
 def clean_carla():
     print("Cleaning CARLA processes")
     os.system("kill -9 $(ps aux | grep CarlaUE4-Linux | grep world-port=${PORT} | grep -v grep | awk '{print $2}' | head -n 1) 2>/dev/null")
-    time.sleep(10)
+    time.sleep(20)
     
 
 def argument_parser():

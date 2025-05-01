@@ -86,6 +86,10 @@ def train(model, args, dataset):
         avg_accuracy = total_correct / total_samples
         wandb.log({"epoch": epoch + 1, "train_loss": avg_loss, "train_accuracy": avg_accuracy})
         print(f"Epoch {epoch + 1}, Avg Loss: {avg_loss:.4f}, Total Loss: {total_loss:.4f}, Accuracy: {avg_accuracy:.4f}")
+        
+        if (epoch + 1) % 10 == 0:
+            print(f"Saving model at epoch {epoch + 1}")
+            model.save(os.path.join(args.save_checkpoint, f"mvadapt_model_epoch_{epoch + 1}.pth"))
 
 def validate(model, args, dataset) -> None:
     print("Validating Model")
@@ -150,6 +154,7 @@ def main():
     parser.add_argument("--remove_crashed", type=bool, default=False)
     parser.add_argument("--remove_imperfect", type=bool, default=False)
     parser.add_argument("--move_dup_dir", type=str, default=None)
+    parser.add_argument("--save_checkpoint", type=str, default="../pretrained_models")
 
     args = parser.parse_args()
     

@@ -429,30 +429,30 @@ class RouteScenario(BasicScenario):
         # Create the background activity of the route
         if os.getenv("BENCHMARK") == "longest6":
             # amount = 500  # use all spawn points
-            town_amount = {
-                "Town01": 70,
-                "Town02": 50,
-                "Town03": 100,
-                "Town04": 200,
-                "Town05": 120,
-                "Town06": 150,
-                "Town07": 110,
-                "Town08": 180,
-                "Town09": 300,
-                "Town10HD": 120,
-            }
             # town_amount = {
-            #     "Town01": 60,
-            #     "Town02": 50,
-            #     "Town03": 60,
-            #     "Town04": 90,
-            #     "Town05": 60,
-            #     "Town06": 70,
-            #     "Town07": 60,
-            #     "Town08": 90,
-            #     "Town09": 150,
-            #     "Town10HD": 60,
+            #     "Town01": 70,
+            #     "Town02": 80,
+            #     "Town03": 100,
+            #     "Town04": 200,
+            #     "Town05": 120,
+            #     "Town06": 150,
+            #     "Town07": 110,
+            #     "Town08": 180,
+            #     "Town09": 300,
+            #     "Town10HD": 120,
             # }
+            town_amount = {
+                "Town01": 80,
+                "Town02": 90,
+                "Town03": 110,
+                "Town04": 210,
+                "Town05": 130,
+                "Town06": 160,
+                "Town07": 60,
+                "Town08": 90,
+                "Town09": 150,
+                "Town10HD": 60,
+            }
             amount = town_amount[config.town] if config.town in town_amount else 0
         elif os.getenv("BENCHMARK") == "empty":
             amount = 0  # use all spawn points
@@ -508,6 +508,10 @@ class RouteScenario(BasicScenario):
             raise Exception("Error: Unable to add the background activity, all spawn points were occupied")
 
         for _actor in new_actors:
+            if _actor.type_id in ["vehicle.carlamotors.carlacola", "vehicle.carlamotors.european_hgv", 
+                             "vehicle.carlamotors.firetruck", "vehicle.tesla.cybertruck"]:
+                _actor.destroy()
+                continue
             self.other_actors.append(_actor)
 
         # Add all the actors of the specific scenarios to self.other_actors

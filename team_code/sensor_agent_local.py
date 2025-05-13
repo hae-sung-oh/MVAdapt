@@ -207,6 +207,7 @@ class SensorAgent(autonomous_agent.AutonomousAgent):
     self.mvdata = MVAdaptDataset(self.config.root_dir, self.config, self.vehicle_config)
     self.adapt = int(os.getenv('ADAPT', 0))
     self.stream = int(os.getenv("STREAM", 0))
+    self.debug_image_buffer = None
     if self.adapt == 1:
       self.mvadapt = MVAdapt(self.config)
       try:
@@ -596,22 +597,28 @@ class SensorAgent(autonomous_agent.AutonomousAgent):
       else:
         dir_path = None
       
-      debug_image = self.nets[0].visualize_model(dir_path,
-                                   self.step,
-                                   tick_data['rgb'],
-                                   lidar_bev,
-                                   tick_data['target_point'],
-                                   pred_wp,
-                                   pred_semantic=pred_semantic,
-                                   pred_bev_semantic=pred_bev_semantic,
-                                   pred_depth=pred_depth,
-                                   pred_checkpoint=pred_checkpoint,
-                                   pred_speed=prob_target_speed,
-                                   pred_bb=bbs_vehicle_coordinate_system,
-                                   gt_speed=gt_velocity,
-                                   gt_wp=None,
-                                   mv_wp=pred_wps[0],
-                                   wp_selected=wp_selected)
+      try:
+        debug_image = self.nets[0].visualize_model(dir_path,
+                                    self.step,
+                                    tick_data['rgb'],
+                                    lidar_bev,
+                                    tick_data['target_point'],
+                                    pred_wp,
+                                    pred_semantic=pred_semantic,
+                                    pred_bev_semantic=pred_bev_semantic,
+                                    pred_depth=pred_depth,
+                                    pred_checkpoint=pred_checkpoint,
+                                    pred_speed=prob_target_speed,
+                                    pred_bb=bbs_vehicle_coordinate_system,
+                                    gt_speed=gt_velocity,
+                                    gt_wp=None,
+                                    mv_wp=pred_wps[0],
+                                    wp_selected=wp_selected)
+        self.debug_image_buffer = debug_image
+      except Exception as e:
+        print(f"Error in visualization: {e}")
+        debug_image = self.debug_image_buffer
+        debug_image.save(os.path.join(dir_path, f'{self.step:04}.png'))
 
     if self.config.use_wp_gru:
       self.pred_wp = torch.stack(pred_wps, dim=0).mean(dim=0)

@@ -58,7 +58,7 @@ class GlobalConfig:
     # Bounding boxes in this radius around the car will be saved in the dataset.
     self.bb_save_radius = 40.0
     # Number of meters we will keep a distance from vehicles in front of us.
-    self.safety_box_safety_margin = 4.0
+    self.safety_box_safety_margin = 3.5
     # Whether the forecast will consider that vehicles yield to other cars in front of them.
     self.model_interactions = False
 
@@ -545,7 +545,7 @@ class GlobalConfig:
     # Iou threshold used for non-maximum suppression on the Bounding Box
     # predictions for the ensembles
     self.iou_treshold_nms = 0.2
-    self.route_planner_min_distance = 7.5
+    self.route_planner_min_distance = 3.0
     self.route_planner_max_distance = 50.0
     # Min distance to the waypoint in the dense rout that the expert is trying to follow
     self.dense_route_planner_min_distance = 3.5

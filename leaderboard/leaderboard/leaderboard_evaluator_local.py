@@ -59,7 +59,12 @@ sensors_to_icons = {
     "sensor.camera.semantic_segmentation": "carla_camera",  # for datagen
     "sensor.camera.depth": "carla_camera",  # for datagen
 }
-FAILED_LOG = ["Failed - Agent couldn't be set up", "Failed - Agent took too long to setup", "Failed - Agent crashed", "Failed - Simulation crashed"]
+FAILED_LOG = ["Failed - Agent couldn't be set up", 
+              "Failed - Agent took too long to setup", 
+              "Failed - Agent crashed", 
+              "Failed - Simulation crashed",
+              "Failed - Agent got blocked",
+              "Failed"]
 
 class LeaderboardEvaluator(object):
     """
@@ -423,7 +428,7 @@ class LeaderboardEvaluator(object):
 
             self._cleanup(result)
             empty_ram_cache()
-            # clean_carla()
+            # self.clean_carla(args)
             
         except Exception as e:
             print("\n\033[91mFailed to stop the scenario, the statistics might be empty:")
@@ -439,12 +444,23 @@ class LeaderboardEvaluator(object):
     
     def check_resume(self, args, index, success_list, data):
         try:
-            log = data["_checkpoint"]["global_record"]["meta"]["exceptions"][index][2]
-            resume = (int(args.resume) == 1 and int(args.resume_failed) == 1 and log in FAILED_LOG) or (success_list[index] == False)
-        except Exception:
+            exception = data["_checkpoint"]["global_record"]["meta"]["exceptions"][index]
+            if exception[1] != index:
+                raise Exception(f"The checkpoint is corrupted: checkpoint = {exception[1]}, index = {index}")
+            log = exception[2]
+            resume = (int(args.resume) == 1 
+                      and int(args.resume_failed) == 1 
+                      and log in FAILED_LOG) or (success_list[index] == False)
+        except Exception as e:
+            print(f"Resume: {e}")
             resume = True
             log = None
         return resume, log
+    
+    def clean_debug_files(self, route_indexer, vehicle_index):
+        if os.getenv("DEBUG_PATH", None) is not None:
+            os.system(f"rm -rf {os.path.join(os.getenv('DEBUG_PATH'), 'RouteScenario_' + str(route_indexer._index) + '_v' + str(vehicle_index))}")
+            print("Debug files removed")
 
     def run(self, args, route_indexer, success_list):
         result = True
@@ -456,8 +472,10 @@ class LeaderboardEvaluator(object):
             if resume:
                 if log is not None:
                     print(f"Resume: RouteScenario_{route_indexer._index}: {log}")
+                    self.clean_debug_files(route_indexer, args.index)
                 else:
                     print("Starting new route.")
+                    
                 try:
                     run = True
                     # setup
@@ -473,19 +491,19 @@ class LeaderboardEvaluator(object):
                     success_list[route_indexer._index - 1] = result
                     with open(args.result_list, "wb") as f:
                         pickle.dump(success_list, f)
-                        
+                    self.global_statistics(args, route_indexer)
+                    
                 except RuntimeError as e:
                     self.global_statistics(args, route_indexer)
                     print(f"RuntimeError - Retry: {e}")
                     traceback.print_exc()
                     return False
+                
                 except KeyboardInterrupt as e:
                     self.global_statistics(args, route_indexer)
                     print(f"KeyboardInterrupt - Retry: {e}")
                     traceback.print_exc()
                     return False
-                if run:
-                    self.global_statistics(args, route_indexer)
             else:
                 print(f"Skip: RouteScenario_{route_indexer._index}: {log}")
                 config = route_indexer.next()
@@ -498,18 +516,37 @@ class LeaderboardEvaluator(object):
         print("\033[1m> Registering the global statistics\033[0m")
         global_stats_record = self.statistics_manager.compute_global_statistics(route_indexer.total)
         StatisticsManager.save_global_record(global_stats_record, self.sensor_icons, route_indexer.total, args.checkpoint)
+        
+    def clean_carla(self, args):
+        # For CARLA > 0.9.12 : GPU memory leak
+        # To prevent RAM explosion, we need to kill the CARLA process
+        print("Cleaning CARLA processes")
+        os.system("kill -9 $(ps aux | grep CarlaUE4-Linux | grep world-port=${PORT} | grep -v grep | awk '{print $2}' | head -n 1) 2>/dev/null")
+
+        max_retries = 30
+        retry_delay = 2  
+        connected = False
+        for attempt in range(max_retries):
+            try:
+                self.client = carla.Client(args.host, int(args.port))
+                self.client.set_timeout(10)
+                self.world = self.client.get_world()  
+                connected = True
+                print(f"Connected to CARLA server")
+                break
+            except RuntimeError:
+                time.sleep(retry_delay)
+        
+        if not connected:
+            raise RuntimeError("Failed to connect to CARLA server after multiple retries.")
+            
+        self.traffic_manager = self.client.get_trafficmanager(int(args.trafficManagerPort))
+        self.client.set_timeout(self.client_timeout)
+        return
 
 def empty_ram_cache():
-    # print("Emptying RAM cache")
-    # os.system('sync; sudo sh -c "echo 3 > /proc/sys/vm/drop_caches"')
     print("Emptying CUDA RAM cache")
     torch.cuda.empty_cache()
-    
-def clean_carla():
-    print("Cleaning CARLA processes")
-    os.system("kill -9 $(ps aux | grep CarlaUE4-Linux | grep world-port=${PORT} | grep -v grep | awk '{print $2}' | head -n 1) 2>/dev/null")
-    time.sleep(20)
-    
 
 def argument_parser():
     description = "CARLA AD Leaderboard Evaluation: evaluate your Agent in CARLA scenarios\n"

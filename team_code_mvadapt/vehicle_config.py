@@ -54,7 +54,7 @@ class VehicleConfig:
             {   # 6
             "vehicle_name": "vehicle.carlamotors.carlacola",
             "vehicle_extent": [2.601919174194336, 1.3134948015213013, 1.2337223291397095],
-            "camera_pos": [0.0, 0.0, 2.0],
+            "camera_pos": [3.0, 0.0, 2.0],
             # "lidar_pos": [0.0, 0.0, 2.7],
             "lidar_pos": [-2.0, 0.0, 3.0],
             "physics": self.physics_list[6]

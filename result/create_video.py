@@ -1,6 +1,6 @@
 import subprocess
 from glob import glob
-from os.path import join, isdir, isfile
+from os.path import join, isdir, isfile, abspath
 from os import listdir, remove
 from argparse import ArgumentParser
 
@@ -14,22 +14,27 @@ def create_video(root, args):
         print(f"No PNG images found in {root}, skipping...")
         return
     
-    if args.no_overwrite and isfile(output_video):
+    if args.overwrite and isfile(output_video):
         option = "-n"
     else:
         option = "-y"
 
-    # Construct FFmpeg command
+    list_path = join(root, "image_files.txt")
+    with open(list_path, "w") as f:
+        for file in image_files:
+            f.write(f"file '{abspath(file)}'\n")
+
     ffmpeg_cmd = [
         "ffmpeg",
-        option,  # Overwrite output file if it exists
-        "-framerate", str(frame_rate),  # Set frame rate
-        "-pattern_type", "glob",  # Use wildcard pattern
-        "-i", join(root, "*.png"),  # Input pattern
-        "-c:v", "libx264",  # Encode in H.264
-        "-pix_fmt", "yuv420p",  # Set pixel format
-        "-loglevel", "fatal",  # Suppress output   
-        output_video  # Output video path
+        option,
+        "-f", "concat",
+        "-safe", "0",
+        "-r", str(frame_rate),
+        "-i", list_path,
+        "-c:v", "libx264",
+        "-pix_fmt", "yuv420p",
+        "-loglevel", "fatal",
+        output_video
     ]
 
     # Run FFmpeg command
@@ -41,6 +46,8 @@ def create_video(root, args):
         
     if args.clear:
         clear_folder(root)
+    if isfile(list_path):
+        remove(list_path)
         
 def clear_folder(root):
     for file in listdir(root):
@@ -52,7 +59,7 @@ if __name__ == "__main__":
     args = ArgumentParser()
     args.add_argument("root", type=str)
     args.add_argument("--clear", action="store_true")
-    args.add_argument("--no-overwrite", action="store_false")
+    args.add_argument("--overwrite", action="store_true")
     args = args.parse_args()
     
     splits = [s for s in listdir(args.root) if isdir(join(args.root, s))]

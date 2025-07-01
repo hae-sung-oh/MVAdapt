@@ -26,7 +26,7 @@ class VehicleConfig:
             {   # 2
             "vehicle_name": "vehicle.audi.etron",
             "vehicle_extent": [2.427854299545288, 1.0163782835006714, 0.8246796727180481],
-            "camera_pos": [-1.5, 0.0, 2.0],
+            "camera_pos": [0.0, 0.0, 2.0],
             "lidar_pos": [0.0, 0.0, 2.5],
             "physics": self.physics_list[2]
             },
@@ -286,7 +286,7 @@ class VehicleConfig:
         physics = actor.get_physics_control()
 
         physics.max_rpm = physics.max_rpm * random.uniform(0.5, 1.5)
-        physics.mass = physics.mass * random.uniform(0.3, 1.2) 
+        physics.mass = physics.mass * random.uniform(0.5, 1.5) 
         physics.center_of_mass = carla.Location(x=random.uniform(-1, 1), y=0.0, z=random.uniform(-1, 1)) 
 
         max_torque = min(random.randint(1, 4), len(physics.torque_curve))

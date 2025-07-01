@@ -63,8 +63,10 @@ FAILED_LOG = ["Failed - Agent couldn't be set up",
               "Failed - Agent took too long to setup", 
               "Failed - Agent crashed", 
               "Failed - Simulation crashed",
-              "Failed - Agent got blocked",
-              "Failed"]
+              "Failed - Agent timed out",
+              "Failed"
+              ]
+
 
 class LeaderboardEvaluator(object):
     """
@@ -448,9 +450,11 @@ class LeaderboardEvaluator(object):
             if exception[1] != index:
                 raise Exception(f"The checkpoint is corrupted: checkpoint = {exception[1]}, index = {index}")
             log = exception[2]
-            resume = (int(args.resume) == 1 
-                      and int(args.resume_failed) == 1 
-                      and log in FAILED_LOG) or (success_list[index] == False)
+            print(f"Resume failed: {int(args.resume_failed)}")
+            if int(args.resume_failed) == 0:
+                resume = (int(args.resume) == 1 and success_list[index] == False)
+            else:
+                resume = (int(args.resume) == 1 and log in FAILED_LOG) or (success_list[index] == False)
         except Exception as e:
             print(f"Resume: {e}")
             resume = True
@@ -624,15 +628,14 @@ def main(args):
         pygame.quit()
     with open(args.result_list, "wb") as f:
         pickle.dump(success_list, f)
-    return result
-
+    
+    if result:
+        print("Finished: Success")
+        return 0
+    else:
+        print("Finished: Failed")
+        return -1
 
 if __name__ == "__main__":
     args = argument_parser()
-    result = main(args)
-    if result:
-        print("Finished: Success")
-        sys.exit(0)
-    else:
-        print("Finished: Failed")
-        sys.exit(-1)
+    sys.exit(main(args))

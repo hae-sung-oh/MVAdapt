@@ -42,14 +42,13 @@ def train(model, args, dataset):
 
     g_cuda = torch.Generator(device='cpu')
     g_cuda.manual_seed(torch.initial_seed())
-    data_loader = DataLoader(dataset, 
-                         batch_size=args.batch_size, 
-                         shuffle=True, 
-                        #  num_workers=os.cpu_count() - 8,  # type: ignore
-                         pin_memory=True, 
-                         pin_memory_device=args.device,
-                        #  generator=g_cuda, 
-                        )
+    data_loader = DataLoader(
+            dataset,
+            batch_size=args.batch_size,
+            shuffle=True,
+            num_workers=max(4, os.cpu_count() - 4),
+            pin_memory=True,
+        )
 
     for epoch in range(args.epochs):
         model.train()

@@ -272,38 +272,43 @@ class MVAdaptDataset(Dataset):
             vehicle_list = eval(args.vehicle_indices)
 
         for v_index in vehicle_list:
-            self.config.update_vehicle(v_index)
-            self.config.initialize(root_dir=self.root_dir, vehicle_index=v_index, verbose=args.verbose)
+            try:
+                self.config.update_vehicle(v_index)
+                self.config.initialize(root_dir=self.root_dir, vehicle_index=v_index, verbose=args.verbose)
 
-            data_dir = self.config.train_data if split == 'train' else self.config.val_data
-            shuffle = True if split == 'train' else False
-            carla_set = CARLA_Data(data_dir, self.config, verbose=args.verbose, clear_crashed=clear_crashed, clear_imperfect=clear_imperfect)
-            dataloader = DataLoader(carla_set, batch_size=args.process_batch, num_workers=6, shuffle=shuffle, pin_memory=True)
+                data_dir = self.config.train_data if split == 'train' else self.config.val_data
+                shuffle = True if split == 'train' else False
+                carla_set = CARLA_Data(data_dir, self.config, verbose=args.verbose, clear_crashed=clear_crashed, clear_imperfect=clear_imperfect)
+                dataloader = DataLoader(carla_set, batch_size=args.process_batch, num_workers=6, shuffle=shuffle, pin_memory=True)
 
-            if v_index not in physics_cache:
-                physics_cache[v_index] = self.load_physics_data(v_index)
-            physics_prop, gear_prop = physics_cache[v_index]
+                if v_index not in physics_cache:
+                    physics_cache[v_index] = self.load_physics_data(v_index)
+                physics_prop, gear_prop = physics_cache[v_index]
 
-            for data in tqdm(dataloader, desc=f"Processing {split.capitalize()} Data - Vehicle {v_index}"):
-                batch_size = data['rgb'].shape[0]
-                result = process_data(data, agent, args.device, self.root_dir)
+                for data in tqdm(dataloader, desc=f"Processing {split.capitalize()} Data - Vehicle {v_index}"):
+                    batch_size = data['rgb'].shape[0]
+                    result = process_data(data, agent, args.device, self.root_dir)
 
-                self.vehicle_indices.extend([v_index] * batch_size)
-                self.gt_waypoints.extend(result[0])
-                self.bs_waypoints.extend(result[1])
-                self.gt_controls.extend(result[2])
-                self.bs_controls.extend(result[3])
-                self.scene_features.extend(result[4])
-                self.physics_params.extend([physics_prop] * batch_size)
-                self.gear_params.extend([gear_prop] * batch_size)
-                self.rgb_paths.extend(result[5])
-                self.lidar_paths.extend(result[6])
-                self.target_points.extend(result[7])
-                self.ego_vels.extend(result[8])
-                self.commands.extend(result[9])
+                    self.vehicle_indices.extend([v_index] * batch_size)
+                    self.gt_waypoints.extend(result[0])
+                    self.bs_waypoints.extend(result[1])
+                    self.gt_controls.extend(result[2])
+                    self.bs_controls.extend(result[3])
+                    self.scene_features.extend(result[4])
+                    self.physics_params.extend([physics_prop] * batch_size)
+                    self.gear_params.extend([gear_prop] * batch_size)
+                    self.rgb_paths.extend(result[5])
+                    self.lidar_paths.extend(result[6])
+                    self.target_points.extend(result[7])
+                    self.ego_vels.extend(result[8])
+                    self.commands.extend(result[9])
 
-                torch.cuda.empty_cache()
-                del result
+                    torch.cuda.empty_cache()
+                    del result
+            except Exception as e:
+                print(f"Failed to process vehicle {v_index}: {e}")
+                continue
+            
             try:
                 self.save(f"/home/ohs-dyros/gitRepo/MVAdapt/dataset/checkpoint_{v_index}.pkl")
                 print(f"Saved checkpoint for vehicle {v_index}")
@@ -311,7 +316,7 @@ class MVAdaptDataset(Dataset):
                 print(f"Failed to save checkpoint.: {e}")
                 
                 
-    def sample_data_per_vehicle(self, num_samples, exclude=[]):
+    def sample_data(self, num_samples, exclude=[], remove=False):
         v2index = defaultdict(list)
         for idx, v_index in enumerate(self.vehicle_indices):
             if v_index not in exclude:
@@ -322,7 +327,7 @@ class MVAdaptDataset(Dataset):
             if len(indices) > num_samples:
                 sampled_indices.extend(random.sample(indices, num_samples))
             else:
-                sampled_indices.extend(indices) 
+                sampled_indices.extend(indices)
         
         dataset = MVAdaptDataset(self.root_dir, self.config)
         for idx in sampled_indices:
@@ -340,4 +345,20 @@ class MVAdaptDataset(Dataset):
             dataset.ego_vels.append(self.ego_vels[idx])
             dataset.commands.append(self.commands[idx])
         
+        if remove:
+            keep = sorted(set(range(len(self.vehicle_indices))) - set(sampled_indices))
+            self.vehicle_indices = [self.vehicle_indices[i] for i in keep]
+            self.gt_waypoints = [self.gt_waypoints[i] for i in keep]
+            self.bs_waypoints = [self.bs_waypoints[i] for i in keep]
+            self.gt_controls = [self.gt_controls[i] for i in keep]
+            self.bs_controls = [self.bs_controls[i] for i in keep]
+            self.scene_features = [self.scene_features[i] for i in keep]
+            self.physics_params = [self.physics_params[i] for i in keep]
+            self.gear_params = [self.gear_params[i] for i in keep]
+            self.rgb_paths = [self.rgb_paths[i] for i in keep]
+            self.lidar_paths = [self.lidar_paths[i] for i in keep]
+            self.target_points = [self.target_points[i] for i in keep]
+            self.ego_vels = [self.ego_vels[i] for i in keep]
+            self.commands = [self.commands[i] for i in keep]
+
         return dataset

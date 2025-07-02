@@ -1,25 +1,16 @@
-import importlib
-import math
 import os
-import random
-import re
-import trace
 import traceback
-import numpy as np
 
 from argparse import ArgumentParser
-from typing import List, Tuple
 
 import torch
-from torch.utils.data import DataLoader, TensorDataset
-import torch.nn.functional as F
-import torch.nn as nn
+from torch.utils.data import DataLoader
 import torch.optim as optim
 
 from tqdm import tqdm
 
 import wandb
-from mvadapt_v3 import MVAdapt
+from mvadapt_model import MVAdapt
 from mvadapt_data import MVAdaptDataset
 
 def compute_wp_accuracy(predicted, gt, tolerance=0.05):
@@ -46,7 +37,7 @@ def train(model, args, dataset):
             dataset,
             batch_size=args.batch_size,
             shuffle=True,
-            num_workers=max(4, os.cpu_count() - 4),
+            num_workers=max(4, os.cpu_count() - 4), # type: ignore
             pin_memory=True,
         )
 
@@ -100,7 +91,6 @@ def validate(model, args, dataset) -> None:
     
     g_cuda = torch.Generator(device='cpu')
     g_cuda.manual_seed(torch.initial_seed())
-    # data_loader = DataLoader(dataset, batch_size=args.batch_size, shuffle=True, generator=g_cuda, num_workers=os.cpu_count()-8) # type: ignore
     data_loader = DataLoader(dataset, 
                              batch_size=args.batch_size, 
                              pin_memory=True,
@@ -133,7 +123,7 @@ def validate(model, args, dataset) -> None:
 
 def main():
     parser = ArgumentParser()
-    parser.add_argument("--vehicle_indices", type=str, required=True)
+    parser.add_argument("--vehicle_ids", type=str, required=True)
     parser.add_argument("--root_dir", type=str, default="/path/to/dataset")
     parser.add_argument("--base_model", type=str, default="/path/to/base_model")
     parser.add_argument("--latent_dim", type=int, default=None)
@@ -148,8 +138,6 @@ def main():
     parser.add_argument("--load_data", type=str, default=None)
     parser.add_argument("--load_model", type=str, default=None)
     parser.add_argument("--verbose", type=bool, default=True)
-    parser.add_argument("--debug", type=bool, default=False)
-    parser.add_argument("--version", type=str, default="v1")
     parser.add_argument("--remove_crashed", type=bool, default=False)
     parser.add_argument("--remove_imperfect", type=bool, default=False)
     parser.add_argument("--move_dup_dir", type=str, default=None)
@@ -184,7 +172,7 @@ def main():
         
     wandb.init(project="MVAdapt-Training", config=args.__dict__)
     loaded = False
-    model = importlib.import_module(f'team_code_mvadapt.mvadapt_{args.version}').MVAdapt(train_set.config, args).to(args.device)
+    model = MVAdapt(train_set.config, args).to(args.device)
     if args.load_model is not None and args.load_model != "None":
         try:
             print("Loading Model")
@@ -207,10 +195,6 @@ def main():
         print(f"Model saved to {args.save_model}")
         
     validate(model, args, test_set)
-    
-    if args.debug:
-        print("Exporting debug data")
-        model.debug(os.getenv("WORK_DIR", '.') + f'/debug_{args.version}', args.base_model, train_set, 200)
     
     wandb.finish()
 

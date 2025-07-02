@@ -23,7 +23,7 @@ export SAVE_DATA="None"
 # export SAVE_DATA="${WORK_DIR}/dataset/mvadapt_finetune_dataset"
 
 export PRETRAINED_MODEL="${WORK_DIR}/pretrained_models/mvadapt.pth"
-export SAVE_FINETUNED_MODEL="${WORK_DIR}/pretrained_models/finetuned_mvadapt.pth"
+export SAVE_FINETUNED_MODEL="${WORK_DIR}/pretrained_models/mvadapt_finetuned.pth"
 
 
 python ${WORK_DIR}/team_code_mvadapt/finetune_mvadapt.py \
@@ -37,4 +37,5 @@ python ${WORK_DIR}/team_code_mvadapt/finetune_mvadapt.py \
 --process_batch=${PROCESS_BATCH} \
 --save_data=${SAVE_DATA} \
 --load_data=${LOAD_DATA} \
---pretrained_model=${PRETRAINED_MODEL}
+--pretrained_model=${PRETRAINED_MODEL} \
+--save_finetuned_model=${SAVE_FINETUNED_MODEL} 

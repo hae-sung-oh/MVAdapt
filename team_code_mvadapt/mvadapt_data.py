@@ -13,7 +13,7 @@ from basemodel_agent import BasemodelAgent
 import random
 from collections import defaultdict
 
-all_vehicles = [1, 2, 3, 5, 6, 7, 8, 9, 11, 12, 15, 18, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 35]
+all_vehicles = [1, 2, 3, 5, 7, 8, 9, 11, 12, 15, 18, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 35]
 
 
 def normalize(value, max, min):
@@ -159,7 +159,7 @@ class MVAdaptDataset(Dataset):
 
     def __getitem__(self, idx):
         data = {}
-        data['vehicle_index'] = self.vehicle_indices[idx]
+        data['vehicle_id'] = self.vehicle_indices[idx]
         data['gt_waypoint'] = self.gt_waypoints[idx]
         data['bs_waypoint'] = self.bs_waypoints[idx]
         data['gt_control'] = self.gt_controls[idx]
@@ -223,8 +223,8 @@ class MVAdaptDataset(Dataset):
         self.ego_vels.extend(dataset.ego_vels)
         self.commands.extend(dataset.commands)
         
-    def load_physics_data(self, vehicle_index, norm=True):
-        item = self.vehicle_config.config_list[vehicle_index]
+    def load_physics_data(self, vehicle_id, norm=True):
+        item = self.vehicle_config.config_list[vehicle_id]
         
         physics_prop = []
         gear_prop = []
@@ -274,7 +274,7 @@ class MVAdaptDataset(Dataset):
         for v_index in vehicle_list:
             try:
                 self.config.update_vehicle(v_index)
-                self.config.initialize(root_dir=self.root_dir, vehicle_index=v_index, verbose=args.verbose)
+                self.config.initialize(root_dir=self.root_dir, vehicle_id=v_index, verbose=args.verbose)
 
                 data_dir = self.config.train_data if split == 'train' else self.config.val_data
                 shuffle = True if split == 'train' else False

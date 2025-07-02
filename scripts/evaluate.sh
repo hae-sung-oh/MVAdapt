@@ -5,7 +5,7 @@ export HOST="127.0.0.1"
 # export TRAFFIC_MANAGER_PORT="2500"
 export TRAFFIC_MANAGER_SEED="0"
 export DEBUG=0
-export TIMEOUT="6000.0"
+export TIMEOUT="100.0"
 export RECORD=""
 export SCENARIOS="${WORK_DIR}/leaderboard/data/scenarios/eval_scenarios.json"
 export REPETITIONS=1
@@ -65,7 +65,7 @@ while [ $EXIT_CODE -ne 0 ]; do
     --resume-failed=${RESUME_FAILED} \
     --checkpoint=${CHECKPOINT} \
     --result-list=${RESULT_LIST} \
-    --index=${VEHICLEINDEX} &
+    --index=${VEHICLE_ID} &
     PYTHON_PID=$!
 
     wait $PYTHON_PID

@@ -17,9 +17,9 @@ export ROUTES="${SCENARIO_DIRECTORY}/routes/s${SCENE}/${TOWN}_Scenario${SCENE}.x
 export SCENARIOS="${SCENARIO_DIRECTORY}/scenarios/s${SCENE}/${TOWN}_Scenario${SCENE}.json"
 export DATAGEN=1
 export BENCHMARK=collection
-export CHECKPOINT_ENDPOINT=${WORK_DIR}/dataset/${TOWN}/Routes_${TOWN}_Repetition0_V${VEHICLEINDEX}/Dataset_generation_${TOWN}_V${VEHICLEINDEX}.json
-export SAVE_PATH=${WORK_DIR}/dataset/${TOWN}/Routes_${TOWN}_Repetition0_V${VEHICLEINDEX}
-export RESULT_LIST="${WORK_DIR}/dataset/${TOWN}/Routes_${TOWN}_Repetition0_V${VEHICLEINDEX}/s${SCENE}_result_list_${VEHICLEINDEX}.pickle"
+export CHECKPOINT_ENDPOINT=${WORK_DIR}/dataset/${TOWN}/Routes_${TOWN}_Repetition0_V${VEHICLE_ID}/Dataset_generation_${TOWN}_V${VEHICLE_ID}.json
+export SAVE_PATH=${WORK_DIR}/dataset/${TOWN}/Routes_${TOWN}_Repetition0_V${VEHICLE_ID}
+export RESULT_LIST="${WORK_DIR}/dataset/${TOWN}/Routes_${TOWN}_Repetition0_V${VEHICLE_ID}/s${SCENE}_result_list_${VEHICLE_ID}.pickle"
 
 EXIT_CODE=-1 
 
@@ -42,7 +42,7 @@ while [ $EXIT_CODE -ne 0 ]; do
     --resume=${RESUME} \
     --checkpoint=${CHECKPOINT_ENDPOINT} \
     --result-list=${RESULT_LIST} \
-    --index=${VEHICLEINDEX} &
+    --index=${VEHICLE_ID} &
     PYTHON_PID=$!
 
     wait $PYTHON_PID

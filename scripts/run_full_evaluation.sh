@@ -2,7 +2,7 @@
 
 source set_environment.sh
 
-DATE=$(date '+%y%m%d-%H%M')
+DATE=$(date '+%y%m%d')
 export PORT="2000"
 export TRAFFIC_MANAGER_PORT="2500"
 

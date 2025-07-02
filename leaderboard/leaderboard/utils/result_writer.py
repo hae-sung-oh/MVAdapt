@@ -47,7 +47,7 @@ class ResultOutputProvider(object):
         # Create the title
         output = "\n"
         output += "\033[1m========= Results of {} (repetition {}, index {}) ------ {} \033[1m=========\033[0m\n".format(
-            self._data.scenario_tree.name, self._data.repetition_number, os.getenv("VEHICLEINDEX", "UNKNOWN"), self._global_result)
+            self._data.scenario_tree.name, self._data.repetition_number, os.getenv("VEHICLE_ID", "UNKNOWN"), self._global_result)
         output += "\n"
 
         # Simulation part

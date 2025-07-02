@@ -64,7 +64,7 @@ class BasemodelAgent(autonomous_agent.AutonomousAgent):
       loaded_config = pickle.load(args_file)
 
     # Generate new config for the case that it has new variables.
-    self.config = GlobalConfig(os.environ.get('VEHICLE_INDEX', 0))
+    self.config = GlobalConfig(os.environ.get('vehicle_id', 0))
     # Overwrite all properties that were set in the saved config.
     self.config.__dict__.update(loaded_config.__dict__)
 
@@ -167,8 +167,8 @@ class BasemodelAgent(autonomous_agent.AutonomousAgent):
 
     self.lidar_last = None
 
-  def update_vehicle(self, vehicle_index):
-    self.config = GlobalConfig(vehicle_index)
+  def update_vehicle(self, vehicle_id):
+    self.config = GlobalConfig(vehicle_id)
     
   @torch.inference_mode()  # Turns off gradient computation
   def tick(self, input_data):

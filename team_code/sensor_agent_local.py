@@ -24,11 +24,7 @@ from config import GlobalConfig
 from data import CARLA_Data
 from nav_planner import RoutePlanner
 from nav_planner import extrapolate_waypoint_route
-version = os.getenv("VERSION", "v4")
-import importlib
-module = importlib.import_module(f'team_code_mvadapt.mvadapt_{version}')
-MVAdapt = getattr(module, 'MVAdapt')
-# from team_code_mvadapt.mvadapt_v7 import MVAdapt
+from team_code_mvadapt.mvadapt_model import MVAdapt
 from team_code_mvadapt.mvadapt_data import MVAdaptDataset
 
 from filterpy.kalman import MerweScaledSigmaPoints
@@ -75,11 +71,11 @@ class SensorAgent(autonomous_agent.AutonomousAgent):
       loaded_config = pickle.load(args_file)
 
     # Generate new config for the case that it has new variables.
-    self.vehicle_index = int(os.getenv("VEHICLEINDEX", 0))
-    self.config = GlobalConfig(self.vehicle_index)
+    self.vehicle_id = int(os.getenv("VEHICLE_ID", 0))
+    self.config = GlobalConfig(self.vehicle_id)
     # Overwrite all properties that were set in the saved config.
     self.config.__dict__.update(loaded_config.__dict__)
-    self.config.update_vehicle(self.vehicle_index)
+    self.config.update_vehicle(self.vehicle_id)
     self.vehicle_config.update_config(self.config)
 
     # For models supporting different output modalities we select which one to use here.
@@ -215,23 +211,23 @@ class SensorAgent(autonomous_agent.AutonomousAgent):
         print(f'MVAdapt is on: {os.getenv("ADAPT_PATH")}')
       except Exception as e:
         print(f'Could not load MVAdapt model. Using baseline model: {e}')
-      self.physics_prop, self.gear_prop = self.mvdata.load_physics_data(self.vehicle_index)
+      self.physics_prop, self.gear_prop = self.mvdata.load_physics_data(self.vehicle_id)
       
     if self.stream == 1:
       try:
-        self.shm = shared_memory.SharedMemory(name=f'pygame_image_{os.getenv("SPLIT", "trained")}_{os.getenv("VEHICLEINDEX", "0")}')
+        self.shm = shared_memory.SharedMemory(name=f'pygame_image_{os.getenv("SPLIT", "trained")}_{os.getenv("VEHICLE_ID", "0")}')
       except FileNotFoundError:
-        self.shm = shared_memory.SharedMemory(name=f'pygame_image_{os.getenv("SPLIT", "trained")}_{os.getenv("VEHICLEINDEX", "0")}', create=True, size=1024*1792*3)
+        self.shm = shared_memory.SharedMemory(name=f'pygame_image_{os.getenv("SPLIT", "trained")}_{os.getenv("VEHICLE_ID", "0")}', create=True, size=1024*1792*3)
         
   def update_physics(self):
     print('Updating physics properties')
     try:
       with open(os.getenv('RANDOM_PHYSICS_PATH'), 'wb') as f:
-        pickle.dump(self.vehicle_config.config_list[self.vehicle_index], f)
+        pickle.dump(self.vehicle_config.config_list[self.vehicle_id], f)
       print(f'Physics properties saved: {os.getenv("RANDOM_PHYSICS_PATH")}')
     except Exception as e:
       print(f'Could not save physics properties: {e}')
-    self.physics_prop, self.gear_prop = self.mvdata.load_physics_data(self.vehicle_index)
+    self.physics_prop, self.gear_prop = self.mvdata.load_physics_data(self.vehicle_id)
     
   def _init(self):
     # During setup() not everything is available yet, so this _init is a second setup in run_step()
@@ -592,7 +588,7 @@ class SensorAgent(autonomous_agent.AutonomousAgent):
       else:
         prob_target_speed = pred_target_speed
       if os.getenv("DEBUG_PATH", None) is not None:
-        dir_path = f"{os.getenv('DEBUG_PATH')}/{os.getenv('ROUTE_NAME')}_v{os.getenv('VEHICLEINDEX')}"
+        dir_path = f"{os.getenv('DEBUG_PATH')}/{os.getenv('ROUTE_NAME')}_v{os.getenv('VEHICLE_ID')}"
         os.makedirs(dir_path, exist_ok=True)
       else:
         dir_path = None

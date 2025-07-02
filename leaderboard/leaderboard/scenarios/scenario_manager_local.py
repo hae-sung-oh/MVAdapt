@@ -90,12 +90,12 @@ class ScenarioManager(object):
             self.clock = pygame.time.Clock()
             try:
                 split = str(os.getenv("SPLIT", "trained"))
-                vehicle_index = str(os.getenv("VEHICLEINDEX", "0"))
-                self.shm = shared_memory.SharedMemory(name=f'pygame_image_{split}_{vehicle_index}', create=True, size=1024*1792*3)
-                print(f"Created shared memory: pygame_image_{split}_{vehicle_index}")
+                vehicle_id = str(os.getenv("VEHICLE_ID", "0"))
+                self.shm = shared_memory.SharedMemory(name=f'pygame_image_{split}_{vehicle_id}', create=True, size=1024*1792*3)
+                print(f"Created shared memory: pygame_image_{split}_{vehicle_id}")
             except FileExistsError:
-                print(f"Using existing shared memory: pygame_image_{split}_{vehicle_index}")
-                self.shm = shared_memory.SharedMemory(name=f'pygame_image_{split}_{vehicle_index}')
+                print(f"Using existing shared memory: pygame_image_{split}_{vehicle_id}")
+                self.shm = shared_memory.SharedMemory(name=f'pygame_image_{split}_{vehicle_id}')
             
     def __del__(self):
         if self.stream == 1:

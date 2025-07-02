@@ -168,7 +168,7 @@ class MapAgent(autonomous_agent.AutonomousAgent):
       loaded_config = pickle.load(args_file)
 
     # Generate new config for the case that it has new variables.
-    self.config = GlobalConfig(int(os.getenv("VEHICLEINDEX", 0)))
+    self.config = GlobalConfig(int(os.getenv("VEHICLE_ID", 0)))
     # Overwrite all properties that were set in the saved config.
     self.config.__dict__.update(loaded_config.__dict__)
 

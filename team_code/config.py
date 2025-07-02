@@ -23,9 +23,9 @@ class GlobalConfig:
       'SoftRain': carla.WeatherParameters.SoftRainSunset,
   }
 
-  def __init__(self, vehicle_index=0):
-    self.vehicle_index = vehicle_index
-    self.vehicle_config = VehicleConfig().config_list[vehicle_index]
+  def __init__(self, vehicle_id=0):
+    self.vehicle_id = vehicle_id
+    self.vehicle_config = VehicleConfig().config_list[vehicle_id]
     """ base architecture configurations """
     # -----------------------------------------------------------------------------
     # Autopilot
@@ -598,9 +598,9 @@ class GlobalConfig:
     self.plant_max_speed_pred = 60.0  # Maximum speed we classify when forcasting cars.
     self.forcast_time = 0.5  # Number of seconds we forcast into the future
     
-  def update_vehicle(self, vehicle_index):
-    self.vehicle_index = vehicle_index
-    self.vehicle_config = VehicleConfig().config_list[vehicle_index]
+  def update_vehicle(self, vehicle_id):
+    self.vehicle_id = vehicle_id
+    self.vehicle_config = VehicleConfig().config_list[vehicle_id]
     self.ego_extent_x = self.vehicle_config['vehicle_extent'][0]
     self.ego_extent_y = self.vehicle_config['vehicle_extent'][1]
     self.ego_extent_z = self.vehicle_config['vehicle_extent'][2]
@@ -616,15 +616,15 @@ class GlobalConfig:
     self.lidar_upper_fov = self.vehicle_config["lidar_upper_fov"] if "lidar_upper_fov" in self.vehicle_config else 10.0
     self.camera_pos = self.vehicle_config["camera_pos"]
 
-  def initialize(self, root_dir='', setting='all', vehicle_index=None, verbose=True, **kwargs):
+  def initialize(self, root_dir='', setting='all', vehicle_id=None, verbose=True, **kwargs):
     for k, v in kwargs.items():
       setattr(self, k, v)
 
     self.root_dir = root_dir
     
-    if vehicle_index is not None:
-      assert vehicle_index < len(VehicleConfig().config_list), f'Error: Vehicle index {vehicle_index} does not exist.'
-      assert type(vehicle_index) == int, f'Error: Vehicle index {vehicle_index} is not an integer.'
+    if vehicle_id is not None:
+      assert vehicle_id < len(VehicleConfig().config_list), f'Error: Vehicle index {vehicle_id} does not exist.'
+      assert type(vehicle_id) == int, f'Error: Vehicle index {vehicle_id} is not an integer.'
 
     if setting == 'all':
       first_val_town = 'this_key_does_not_exist'
@@ -660,7 +660,7 @@ class GlobalConfig:
         repetition = int(re.search('Repetition(\\d+)', file).group(1))
         if repetition >= self.num_repetitions:
           continue
-        if vehicle_index is not None and int(re.search('V(\\d+)', file).group(1)) != vehicle_index:
+        if vehicle_id is not None and int(re.search('V(\\d+)', file).group(1)) != vehicle_id:
           continue
         # We don't train on two towns and reserve them for validation
         if ((file.find(first_val_town) != -1) or (file.find(second_val_town) != -1)):
@@ -680,7 +680,7 @@ class GlobalConfig:
         repetition = int(re.search('Repetition(\\d+)', file).group(1))
         if repetition >= self.num_repetitions:
           continue
-        if vehicle_index is not None and int(re.search('V(\\d+)', file).group(1)) != vehicle_index:
+        if vehicle_id is not None and int(re.search('V(\\d+)', file).group(1)) != vehicle_id:
           continue
         # Only use withheld towns for validation
         if ((file.find(first_val_town) == -1) and (file.find(second_val_town) == -1)):

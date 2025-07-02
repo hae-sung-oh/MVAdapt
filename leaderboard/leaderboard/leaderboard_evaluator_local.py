@@ -20,8 +20,6 @@ from argparse import RawTextHelpFormatter
 from datetime import datetime
 import importlib
 import os
-import cv2
-import numpy as np
 import sys
 import json
 
@@ -282,7 +280,6 @@ class LeaderboardEvaluator(object):
         route_string = pathlib.Path(os.environ.get("ROUTES", "")).stem + "_"
         route_string += f"route{config.index}"
         route_date_string = route_string + "_" + "_".join(map(lambda x: "%02d" % x, (now.month, now.day, now.hour, now.minute, now.second)))
-        empty_ram_cache()
         
         # Set up the user's agent, and the timer to avoid freezing the simulation
         try:
@@ -359,7 +356,7 @@ class LeaderboardEvaluator(object):
         try:
             self._load_and_wait_for_world(args, config.town, config.ego_vehicles)
             self._prepare_ego_vehicles(config.ego_vehicles, False)
-            scenario = RouteScenario(world=self.world, vehicle_config=self.vehicle_config, config=config, debug_mode=args.debug, vehicle_index=args.index)
+            scenario = RouteScenario(world=self.world, vehicle_config=self.vehicle_config, config=config, debug_mode=args.debug, vehicle_id=args.index)
             self.statistics_manager.set_scenario(scenario.scenario)
             
             if int(os.environ.get("RANDOM_PHYSICS", 0)) == 1:
@@ -429,8 +426,6 @@ class LeaderboardEvaluator(object):
             scenario.remove_all_actors()
 
             self._cleanup(result)
-            empty_ram_cache()
-            # self.clean_carla(args)
             
         except Exception as e:
             print("\n\033[91mFailed to stop the scenario, the statistics might be empty:")
@@ -450,7 +445,6 @@ class LeaderboardEvaluator(object):
             if exception[1] != index:
                 raise Exception(f"The checkpoint is corrupted: checkpoint = {exception[1]}, index = {index}")
             log = exception[2]
-            print(f"Resume failed: {int(args.resume_failed)}")
             if int(args.resume_failed) == 0:
                 resume = (int(args.resume) == 1 and success_list[index] == False)
             else:
@@ -461,9 +455,9 @@ class LeaderboardEvaluator(object):
             log = None
         return resume, log
     
-    def clean_debug_files(self, route_indexer, vehicle_index):
+    def clean_debug_files(self, route_indexer, vehicle_id):
         if os.getenv("DEBUG_PATH", None) is not None:
-            os.system(f"rm -rf {os.path.join(os.getenv('DEBUG_PATH'), 'RouteScenario_' + str(route_indexer._index) + '_v' + str(vehicle_index))}")
+            os.system(f"rm -rf {os.path.join(os.getenv('DEBUG_PATH'), 'RouteScenario_' + str(route_indexer._index) + '_v' + str(vehicle_id))}")
             print("Debug files removed")
 
     def run(self, args, route_indexer, success_list):
@@ -520,37 +514,6 @@ class LeaderboardEvaluator(object):
         print("\033[1m> Registering the global statistics\033[0m")
         global_stats_record = self.statistics_manager.compute_global_statistics(route_indexer.total)
         StatisticsManager.save_global_record(global_stats_record, self.sensor_icons, route_indexer.total, args.checkpoint)
-        
-    def clean_carla(self, args):
-        # For CARLA > 0.9.12 : GPU memory leak
-        # To prevent RAM explosion, we need to kill the CARLA process
-        print("Cleaning CARLA processes")
-        os.system("kill -9 $(ps aux | grep CarlaUE4-Linux | grep world-port=${PORT} | grep -v grep | awk '{print $2}' | head -n 1) 2>/dev/null")
-
-        max_retries = 30
-        retry_delay = 2  
-        connected = False
-        for attempt in range(max_retries):
-            try:
-                self.client = carla.Client(args.host, int(args.port))
-                self.client.set_timeout(10)
-                self.world = self.client.get_world()  
-                connected = True
-                print(f"Connected to CARLA server")
-                break
-            except RuntimeError:
-                time.sleep(retry_delay)
-        
-        if not connected:
-            raise RuntimeError("Failed to connect to CARLA server after multiple retries.")
-            
-        self.traffic_manager = self.client.get_trafficmanager(int(args.trafficManagerPort))
-        self.client.set_timeout(self.client_timeout)
-        return
-
-def empty_ram_cache():
-    print("Emptying CUDA RAM cache")
-    torch.cuda.empty_cache()
 
 def argument_parser():
     description = "CARLA AD Leaderboard Evaluation: evaluate your Agent in CARLA scenarios\n"

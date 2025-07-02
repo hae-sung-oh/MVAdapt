@@ -1,9 +1,5 @@
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
-import carla
-
-from basemodel_agent import BasemodelAgent
 
 class ForwardGearEncoder(nn.Module):
     def __init__(self, input_dim, latent_dim, output_dim, device='cuda:0'):
@@ -96,17 +92,17 @@ class MultiLayerCrossAttention(nn.Module):
         return scene_embedding
     
 class MVAdapt(nn.Module):
-    def __init__(self, config, args=None, device='cuda:0'):
+    def __init__(self, config, device='cuda:0'):
         super(MVAdapt, self).__init__()
         self.config = config
         self.device = device
         self.input_dim = self.config.gru_input_size
         self.hidden_size = self.config.gru_hidden_size
         self.waypoints = self.config.pred_len // self.config.wp_dilation
-        self.physics_dim = 18
-        self.gear_length = 27
-        self.latent_dim = 128
-        self.gear_dim = 4
+        self.physics_dim = self.config.physics_dim
+        self.gear_length = self.config.gear_length
+        self.latent_dim = self.config.mvadapt_latent_dim
+        self.gear_dim = self.config.mvadapt_gear_dim
         
         self.encoder = nn.Linear(2, self.hidden_size).to(self.device)
         
@@ -126,7 +122,7 @@ class MVAdapt(nn.Module):
         ).to(self.device)
         self.decoder = nn.Linear(self.hidden_size, 2).to(self.device)
 
-    def forward(self, rgb, scene_feature, target_point, physics_params, gear_params):
+    def forward(self, scene_feature, target_point, physics_params, gear_params):
         if scene_feature.dim() == 1:
             scene_feature = scene_feature.unsqueeze(0)
         if scene_feature.size()[-1] != 2:
@@ -143,7 +139,7 @@ class MVAdapt(nn.Module):
         if gear_params.dim() == 1:
             gear_params = gear_params.unsqueeze(0)
 
-        physics_embedding = self.physics_encoder(physics_params, gear_params).unsqueeze(0)
+        physics_embedding = self.physics_encoder(physics_params, gear_params).unsqueeze(1)
         combined_scene = self.transformer_encoder(scene_feature, physics_embedding)
         
         z = self.encoder(target_point).unsqueeze(0)
@@ -155,59 +151,10 @@ class MVAdapt(nn.Module):
 
         return output.reshape(-1, self.waypoints * 2)
 
-    def inference(self, rgb, scene_feature, target_point, physics_params, gear_params):
+    def inference(self, scene_feature, target_point, physics_params, gear_params):
         self.eval()
         with torch.no_grad():
-            return self.forward(rgb, scene_feature, target_point, physics_params, gear_params)
-        
-    def debug(self, path, baseline_path, dataset, max_num=None):
-        agent = BasemodelAgent(baseline_path)
-        if max_num is None:
-            max_num = len(dataset)
-        
-        for i in range(max_num):
-            data = dataset[i]
-            rgb = torch.tensor(data['rgb'], dtype=torch.float32).cuda().unsqueeze(0)
-            lidar = torch.tensor(data['lidar'], dtype=torch.float32).cuda().unsqueeze(0)
-            target_point = torch.tensor(data['target_point'], dtype=torch.float32).cuda().unsqueeze(0)
-            ego_vel = torch.tensor(data['ego_vel'], dtype=torch.float32).cuda().unsqueeze(0).unsqueeze(1)
-            command = torch.tensor(data['command'], dtype=torch.float32).cuda().unsqueeze(0)
-
-            pred_wp, \
-            pred_target_speed, \
-            pred_checkpoint, \
-            pred_semantic, \
-            pred_bev_semantic, \
-            pred_depth, \
-            _, _, _, \
-            joined_wp_features = agent.nets[0].forward(
-                rgb=rgb,
-                lidar_bev=lidar,
-                target_point=target_point,
-                ego_vel=ego_vel,
-                command=command)
-
-            agent.nets[0].visualize_model(
-                path,
-                i,
-                rgb,
-                lidar,
-                target_point,
-                pred_wp,
-                pred_semantic=pred_semantic,
-                pred_bev_semantic=pred_bev_semantic,
-                pred_depth=pred_depth,
-                pred_checkpoint=pred_checkpoint,
-                pred_speed=pred_target_speed,
-                gt_wp=torch.tensor(data['gt_waypoint'].reshape(-1, 2), dtype=torch.float32).cuda().unsqueeze(0),
-                mv_wp=self.inference(
-                    rgb,
-                    joined_wp_features,
-                    target_point,
-                    torch.tensor(data['physics_params'], dtype=torch.float32).cuda().unsqueeze(0),
-                    torch.tensor(data['gear_params'], dtype=torch.float32).cuda().unsqueeze(0)
-                ).reshape(-1, 2).unsqueeze(0),
-            )
+            return self.forward(scene_feature, target_point, physics_params, gear_params)
     
     def save(self, path):
         torch.save(self.state_dict(), path)

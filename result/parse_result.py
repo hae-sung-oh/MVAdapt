@@ -1,23 +1,20 @@
 
 import argparse
 import json
-from math import e
+from os import listdir
 from statistics import fmean
+from os.path import dirname, join, isdir
 
-SPLIT =["untrained", "trained", "random"]
-EXCLUDE = ["Failed - Agent couldn't be set up", "Failed - Agent took too long to setup"]
-
-def parse_result(result, root, key, date, vehicle_index):
-    with open(f"{root}/{date}/{key}/V{vehicle_index}/simulation_results_{vehicle_index}_{date}.json", "r") as f:
+def parse_result(result, root, key, dir_name, vehicle_index):
+    with open(f"{root}/{key}/V{vehicle_index}/simulation_results_{vehicle_index}_{dir_name}.json", "r") as f:
         ds = []
         ins = []
         rc = []
         data = json.load(f)
         for _, record in enumerate(data['_checkpoint']['records']):
-            if record["status"] not in EXCLUDE:
-                ds.append(record["scores"]["score_composed"])
-                ins.append(record["scores"]["score_penalty"])
-                rc.append(record["scores"]["score_route"])
+            ds.append(record["scores"]["score_composed"])
+            ins.append(record["scores"]["score_penalty"])
+            rc.append(record["scores"]["score_route"])
                 
         global_score = {"score_composed": fmean(ds), "score_penalty": fmean(ins), "score_route": fmean(rc)}
         temp = {
@@ -53,41 +50,42 @@ def print_result(result, key):
     print(f"Avg Infraction Score: {fmean(ins):.2f}")
     
 def main(args):
-    result = {"untrained":{}, "trained":{}, "random":{}}
+    split = sorted([
+        name for name in listdir(args.root)
+        if isdir(join(args.root, name))
+    ])
+    result = {folder_name: {} for folder_name in split}
     
-    for key in SPLIT:
+    dir_name = dirname(args.root)
+    
+    for key in split:
         try:
             for i in range(37):
                 try:
-                    parse_result(result, args.root, key, args.date, i)
+                    parse_result(result, args.root, key, dir_name, i)
                 except:
                     continue
         except Exception as e:
             continue
-        
-    json.dump(result, open(f"{args.root}/{args.date}/result_{args.date}.json", "w"), indent=4)
+    
+    path = join(args.root, f"result_{dir_name}.json")
+    json.dump(result, open(path, "w"), indent=4)
 
-    for key in SPLIT:
+    for key in split:
         try:
             print_result(result, key)
         except:
             continue
     print("========================================")
-    print(f"Result saved to {args.root}/{args.date}/result_{args.date}.json")
+    print(f"Result saved to {path}")
         
 def parse_args():
     parser = argparse.ArgumentParser(description="Parse result")
     parser.add_argument(
-        "--root",
+        "root",
         type=str,
         default="/path/to/result",
         help="Root directory for the results",
-    )
-    parser.add_argument(
-        "--date",
-        type=str,
-        default="000000",
-        help="Date of the results (YYMMDD)",
     )
     return parser.parse_args()
     

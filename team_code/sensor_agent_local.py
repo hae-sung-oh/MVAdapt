@@ -573,7 +573,6 @@ class SensorAgent(autonomous_agent.AutonomousAgent):
       pred_wps = []
       for i in range(self.model_count):
         pred_wps.append(self.mvadapt.inference(
-          rgb=tick_data['rgb'],
           scene_feature=wp_features[i],
           target_point=tick_data['target_point'],
           physics_params=torch.tensor(self.physics_prop, dtype=torch.float32).to(self.device).unsqueeze(0),

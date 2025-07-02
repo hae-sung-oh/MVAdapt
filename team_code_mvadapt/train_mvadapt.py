@@ -59,7 +59,7 @@ def train(model, args, dataset):
             gt_wp = data['gt_waypoint'].to(args.device, dtype=torch.float32, non_blocking=True)
             
             optimizer.zero_grad()
-            predicted = model.forward(rgb, scene_feature, target, phys, gear)
+            predicted = model.forward(scene_feature, target, phys, gear)
             loss = loss_fn(predicted, gt_wp)
             loss.backward()
             optimizer.step()
@@ -108,7 +108,7 @@ def validate(model, args, dataset) -> None:
             target = data['target_point'].to(args.device, dtype=torch.float32)
             gt_wp = data['gt_waypoint'].to(args.device, dtype=torch.float32)
             
-            predicted = model.inference(rgb, scene_feature, target, phys, gear)
+            predicted = model.inference(scene_feature, target, phys, gear)
             loss = loss_fn(predicted, gt_wp)
             total_loss += loss.item()
             
@@ -126,8 +126,6 @@ def main():
     parser.add_argument("--vehicle_ids", type=str, required=True)
     parser.add_argument("--root_dir", type=str, default="/path/to/dataset")
     parser.add_argument("--base_model", type=str, default="/path/to/base_model")
-    parser.add_argument("--latent_dim", type=int, default=None)
-    parser.add_argument("--gear_dim", type=int, default=None)
     parser.add_argument("--device", type=str, default="cuda:0")
     parser.add_argument("--epochs", type=int, default=100)
     parser.add_argument("--lr", type=float, default=1e-3)
@@ -172,7 +170,7 @@ def main():
         
     wandb.init(project="MVAdapt-Training", config=args.__dict__)
     loaded = False
-    model = MVAdapt(train_set.config, args).to(args.device)
+    model = MVAdapt(train_set.config).to(args.device)
     if args.load_model is not None and args.load_model != "None":
         try:
             print("Loading Model")

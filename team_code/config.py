@@ -113,7 +113,7 @@ class GlobalConfig:
     # -----------------------------------------------------------------------------
     self.physics_dim = 18
     self.gear_length = 27
-    self.mvadapt_latent_dim = 16
+    self.mvadapt_latent_dim = 128
     self.mvadapt_gear_dim = 4
 
     # -----------------------------------------------------------------------------

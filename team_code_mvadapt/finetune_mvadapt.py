@@ -30,14 +30,13 @@ def validate(model, args, dataset) -> None:
     
     with torch.no_grad():
         for data in tqdm(data_loader, desc="Validation"):
-            rgb = data['rgb'].to(args.device, dtype=torch.float32)
             scene_feature = data['scene_features'].to(args.device, dtype=torch.float32)
             phys = data['physics_params'].to(args.device, dtype=torch.float32)
             gear = data['gear_params'].to(args.device, dtype=torch.float32)
             target = data['target_point'].to(args.device, dtype=torch.float32)
             gt_wp = data['gt_waypoint'].to(args.device, dtype=torch.float32)
             
-            predicted = model.inference(rgb, scene_feature, target, phys, gear)
+            predicted = model.inference(scene_feature, target, phys, gear)
             loss = lossfn(predicted, gt_wp)
             total_loss += loss.item()
             
@@ -72,7 +71,7 @@ def finetune(model, optimizer, args, dataset):
             gt_wp = data['gt_waypoint'].to(args.device, dtype=torch.float32)
             
             optimizer.zero_grad()
-            predicted = model.forward(rgb, scene_feature, target, phys, gear)
+            predicted = model.forward(scene_feature, target, phys, gear)
             loss = loss_fn(predicted, gt_wp)
             loss.backward()
             optimizer.step()
@@ -130,7 +129,7 @@ def main():
     print(f"Fine-tuning set size: {len(finetune_set)}")
     print(f"Validation set size: {len(val_set)}")
 
-    model = MVAdapt(finetune_set.config, args).to(args.device)
+    model = MVAdapt(finetune_set.config).to(args.device)
     
     try:
         print(f"Loading pre-trained model from {args.pretrained_model}")
@@ -144,16 +143,23 @@ def main():
         
     for param in model.physics_encoder.parameters():
         param.requires_grad = True
+        
+    for param in model.transformer_encoder.parameters():
+        param.requires_grad = True
 
     print("Trainable parameters have been set for fine-tuning:")
     for name, param in model.named_parameters():
         if param.requires_grad:
             print(f"  - {name}")
 
-    optimizer = optim.Adam( # type: ignore
-        filter(lambda p: p.requires_grad, model.parameters()), 
-        lr=args.finetune_lr
-    )
+    # optimizer = optim.Adam( # type: ignore
+    #     filter(lambda p: p.requires_grad, model.parameters()), 
+    #     lr=args.finetune_lr
+    # )
+    optimizer = optim.Adam([
+        {'params': model.physics_encoder.parameters(), 'lr': args.finetune_lr},
+        {'params': model.transformer_encoder.parameters(), 'lr': args.finetune_lr * 0.1} # 어텐션 레이어는 1/10 수준의 학습률 적용
+    ])
     
     print("\n--- Evaluating performance BEFORE fine-tuning ---")
     validate(model, args, val_set)

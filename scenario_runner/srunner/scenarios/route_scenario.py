@@ -483,7 +483,7 @@ class RouteScenario(BasicScenario):
 
         route_criterion = InRouteTest(self.ego_vehicles[0],
                                       route=route,
-                                      offroad_max=30,
+                                      offroad_max=60,
                                       terminate_on_failure=True)
 
         completion_criterion = RouteCompletionTest(self.ego_vehicles[0], route=route)

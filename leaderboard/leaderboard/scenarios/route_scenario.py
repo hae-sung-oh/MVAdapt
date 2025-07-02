@@ -35,7 +35,7 @@ from srunner.scenarios.other_leading_vehicle import OtherLeadingVehicle
 from srunner.scenarios.maneuver_opposite_direction import ManeuverOppositeDirection
 from srunner.scenarios.junction_crossing_route import SignalJunctionCrossingRoute, NoSignalJunctionCrossingRoute
 
-from srunner.scenariomanager.scenarioatomics.atomic_criteria import (
+from srunner.scenariomanager.scenarioatomics.atomic_criteria_local import (
     CollisionTest,
     InRouteTest,
     RouteCompletionTest,

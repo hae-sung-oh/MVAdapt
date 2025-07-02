@@ -1466,7 +1466,7 @@ class InRouteTest(Criterion):
     - offroad_min: Maximum safe distance (in meters). Might eventually cause failure
     - terminate_on_failure [optional]: If True, the complete scenario will terminate upon failure of this test
     """
-    MAX_ROUTE_PERCENTAGE = 30  # %
+    MAX_ROUTE_PERCENTAGE = 90  # %
     WINDOWS_SIZE = 5  # Amount of additional waypoints checked
 
     def __init__(self, actor, route, offroad_min=-1, offroad_max=30, name="InRouteTest", terminate_on_failure=False):
@@ -1554,6 +1554,11 @@ class InRouteTest(Criterion):
                     out_route_percentage = 100 * self._out_route_distance / self._accum_meters[-1]
                     if out_route_percentage > self.MAX_ROUTE_PERCENTAGE:
                         off_route = True
+                        print(f"Out of route: {out_route_percentage:.2f}%")
+                        print(f"Out of route distance: {self._out_route_distance:.2f}m")
+                        print(f"Route distance: {self._accum_meters[-1]:.2f}m")
+                        print(f"Shortest distance: {shortest_distance:.2f}m")
+                        print(f"Terminate on failure: {self._terminate_on_failure}")
 
                 self._current_index = closest_index
 

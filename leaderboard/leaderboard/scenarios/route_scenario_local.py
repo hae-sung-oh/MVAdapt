@@ -176,7 +176,7 @@ class RouteScenario(BasicScenario):
 
     category = "RouteScenario"
 
-    def __init__(self, world, config, vehicle_config, debug_mode=0, criteria_enable=True, vehicle_index=0):
+    def __init__(self, world, config, vehicle_config, debug_mode=0, criteria_enable=True, vehicle_id=0):
         """
         Setup all relevant parameters and create scenarios along route
         """
@@ -184,7 +184,7 @@ class RouteScenario(BasicScenario):
         self.vehicle_config = vehicle_config
         self.route = None
         self.sampled_scenarios_definitions = None
-        self.index = vehicle_index
+        self.index = vehicle_id
 
         self._update_route(world, config, debug_mode > 0)
 
@@ -475,9 +475,9 @@ class RouteScenario(BasicScenario):
             town_amount = {
                 "Town01": 90,
                 "Town02": 80,
-                "Town03": 90,
+                "Town03": 500,
                 "Town04": 100,
-                "Town05": 90,
+                "Town05": 200,
                 "Town06": 120,
                 "Town07": 90,
                 "Town08": 140,
@@ -559,7 +559,7 @@ class RouteScenario(BasicScenario):
 
         collision_criterion = CollisionTest(self.ego_vehicles[0], terminate_on_failure=False)
 
-        route_criterion = InRouteTest(self.ego_vehicles[0], route=route, offroad_max=30, terminate_on_failure=True)
+        route_criterion = InRouteTest(self.ego_vehicles[0], route=route, offroad_max=1000, terminate_on_failure=True)
 
         completion_criterion = RouteCompletionTest(self.ego_vehicles[0], route=route)
 

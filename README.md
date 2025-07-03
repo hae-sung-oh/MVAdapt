@@ -1,9 +1,27 @@
 # MVAdapt: Multi-Vehicle Adaptation for End-to-End Autonomous Driving AI
 
-### In working progress
+![Architecture](assets/mvadapt_v4_4_final.png)
 
-This repo is originally from [CARLA_garage](https://github.com/autonomousvision/carla_garage)
+## In working progress!
 
+## Contents
+
+## Installation
+
+## Pre-trained Model
+mvadapt.pth
+
+mvadapt_finetuned.pth
+
+longest6/tfpp_all_0
+
+## Evaluation
+* Parsing result
+* Creating video
+
+## Dataset
+
+```
 vehicle_index: Vehicle model index, i > 36 for randomly generated vehicle model
 gt_waypoint: Ground truth waypoint for vehicle model
 bs_waypoint: Predicted waypoint from baseline model for default vehicle model
@@ -12,14 +30,24 @@ bs_control: Predicted control from baseline model for default vehicle model
 scene_features: Features that extracted by backbone model (TransFuser)
 physics_params: Physical properties for vehicle model
 gear_params: Gear properties for vehicle model
-
 rgb: RGB image 
 lidar_bev: LiDAR BEV image
 target_point: Target heading point
 ego_vel: Speed for ego vehicle
 command: Command for ego vehicle
+```
 
+## Dataset Genearation
 
+## Training
+
+## Citations
+
+## Acknowldgements
+
+## Appendix
+
+```
 0 vehicle.lincoln.mkz_2017
 1 vehicle.audi.a2
 2 vehicle.audi.etron
@@ -57,3 +85,6 @@ command: Command for ego vehicle
 34 vehicle.vespa.zx125
 35 vehicle.volkswagen.t2
 36 vehicle.yamaha.yzf
+```
+
+This repo is originally from [CARLA_garage](https://github.com/autonomousvision/carla_garage)

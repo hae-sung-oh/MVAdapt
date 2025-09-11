@@ -1,6 +1,7 @@
 #!/bin/bash
 
 PORT=${1:-2000}
+CARLA_DIST_DIR='/path/to/your/carla/Dist/CARLA_Shipping_0.9.12-dirty/LinuxNoEditor'
 
 cleanup() {
     echo "Killing Carla server..."
@@ -11,13 +12,8 @@ cleanup() {
 trap cleanup SIGINT SIGTERM
 
 while true; do
-    ./Dist/CARLA_Shipping_0.9.15-dirty/LinuxNoEditor/CarlaUE4.sh -RenderOffScreen --world-port=$PORT \
-#    ./Dist/CARLA_Shipping_0.9.12-dirty/LinuxNoEditor/CarlaUE4.sh  --world-port=$PORT \
-    2> >(grep -v -e "ERROR: Invalid session: no stream available with id" \
-    -e "error retrieving stream id" \
-    -e "ERROR" \
-    -e "Connection reset by peer" \
-    -e "End of file") & CARLA_PID=$!
+    .${CARLA_DIST_DIR}/CarlaUE4.sh  -RenderOffScreen --world-port=$PORT \
+    & CARLA_PID=$!
 
     wait $CARLA_PID
 

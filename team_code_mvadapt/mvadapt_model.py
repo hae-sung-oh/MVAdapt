@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import os
 
 class ForwardGearEncoder(nn.Module):
     def __init__(self, input_dim, latent_dim, output_dim, device='cuda:0'):
@@ -45,10 +46,10 @@ class CrossAttentionTransformer(nn.Module):
         super().__init__()
         self.target_points = target_points
         self.scene_dim = scene_dim
-        self.scene_q = nn.Linear(scene_dim, scene_dim)
-        self.physics_k = nn.Linear(physics_dim, scene_dim) 
+        self.physics_q = nn.Linear(physics_dim, scene_dim * target_points)
+        self.scene_k = nn.Linear(scene_dim, scene_dim) 
         self.scene_v = nn.Linear(scene_dim, scene_dim)
-        self.cross_attention = nn.MultiheadAttention(embed_dim=scene_dim, num_heads=num_heads)
+        self.cross_attention = nn.MultiheadAttention(embed_dim=scene_dim, num_heads=num_heads, batch_first=True)
         self.feed_forward = nn.Sequential(
             nn.Linear(scene_dim, ff_dim),
             nn.Dropout(0.2),
@@ -62,16 +63,15 @@ class CrossAttentionTransformer(nn.Module):
     
     def forward(self, scene_embedding, physics_embedding):
         bs = scene_embedding.size(0)
-        scene_q = self.scene_q(scene_embedding)
-        physics_k = self.physics_k(physics_embedding).reshape(bs, -1, self.scene_dim).repeat(1, self.target_points, 1)
+        physics_q = self.physics_q(physics_embedding).reshape(bs, self.target_points, self.scene_dim)
+        scene_k = self.scene_k(scene_embedding)
         scene_v = self.scene_v(scene_embedding)
-    
-        adapted_scene, _ = self.cross_attention(scene_q, physics_k, scene_v)
-        scene_embedding = self.norm1(scene_q + adapted_scene) 
+
+        adapted_scene, attn_weights = self.cross_attention(physics_q, scene_k, scene_v, need_weights=True)
+        scene_embedding = self.norm1(physics_q + adapted_scene)
         ff_output = self.feed_forward(scene_embedding)
         output = self.norm2(scene_embedding + ff_output)
-        
-        return output
+        return output, attn_weights
     
 class MultiLayerCrossAttention(nn.Module):
     def __init__(self, scene_dim, physics_dim, num_layers=4, num_heads=8, ff_dim=512, target_points=8):
@@ -87,9 +87,12 @@ class MultiLayerCrossAttention(nn.Module):
         ])
     
     def forward(self, scene_embedding, physics_embedding):
-        for layer in self.layers:
-            scene_embedding = layer(scene_embedding, physics_embedding)
-        return scene_embedding
+        final_attn_weights = None
+        for i, layer in enumerate(self.layers):
+            scene_embedding, attn_weights = layer(scene_embedding, physics_embedding)
+            if i == len(self.layers) - 1:
+                final_attn_weights = attn_weights
+        return scene_embedding, final_attn_weights
     
 class MVAdapt(nn.Module):
     def __init__(self, config, device='cuda:0'):
@@ -103,6 +106,8 @@ class MVAdapt(nn.Module):
         self.gear_length = self.config.gear_length
         self.latent_dim = self.config.mvadapt_latent_dim
         self.gear_dim = self.config.mvadapt_gear_dim
+        
+        self.visualize_attention = int(os.environ.get('VISUALIZE_ATTENTION', 0)) == 1
         
         self.encoder = nn.Linear(2, self.hidden_size).to(self.device)
         
@@ -123,38 +128,51 @@ class MVAdapt(nn.Module):
         self.decoder = nn.Linear(self.hidden_size, 2).to(self.device)
 
     def forward(self, scene_feature, target_point, physics_params, gear_params):
-        if scene_feature.dim() == 1:
-            scene_feature = scene_feature.unsqueeze(0)
-        if scene_feature.size()[-1] != 2:
-            scene_feature = scene_feature.reshape(-1, self.waypoints, self.input_dim)
-
+        if self.visualize_attention:
+            physics_params.requires_grad_(True)
+            gear_params.requires_grad_(True)
+            physics_params.retain_grad()
+            gear_params.retain_grad()
+        
+        if scene_feature.dim() == 1: scene_feature = scene_feature.unsqueeze(0)
+        if scene_feature.size()[-1] != 2: scene_feature = scene_feature.reshape(-1, self.waypoints, self.input_dim)
+        if target_point.dim() == 1: target_point = target_point.unsqueeze(0)
+        if physics_params.dim() == 1: physics_params = physics_params.unsqueeze(0)
+        if gear_params.dim() == 1: gear_params = gear_params.unsqueeze(0)
         bs = scene_feature.size(0)
-        
-        if target_point.dim() == 1:
-            target_point = target_point.unsqueeze(0)
-        
-        if physics_params.dim() == 1:
-            physics_params = physics_params.unsqueeze(0)
-        
-        if gear_params.dim() == 1:
-            gear_params = gear_params.unsqueeze(0)
 
         physics_embedding = self.physics_encoder(physics_params, gear_params).unsqueeze(1)
-        combined_scene = self.transformer_encoder(scene_feature, physics_embedding)
+        combined_scene, _ = self.transformer_encoder(scene_feature, physics_embedding)
         
         z = self.encoder(target_point).unsqueeze(0)
         
         output, _ = self.gru(combined_scene, z)
         output = output.reshape(bs * self.waypoints, -1)
         output = self.decoder(output).reshape(bs, self.waypoints, 2)
-        output = torch.cumsum(output, 1)    
+        output = torch.cumsum(output, 1)
+        
+        physics_grads = None
+        gear_grads = None
+        if self.visualize_attention:
+            if physics_params.grad is not None:
+                physics_params.grad.zero_()
+            if gear_params.grad is not None:
+                gear_params.grad.zero_()
+            
+            scalar_output = output.sum()
+            scalar_output.backward(retain_graph=True) 
+            
+            physics_grads = torch.abs(physics_params.grad)
+            gear_grads = torch.abs(gear_params.grad)
 
-        return output.reshape(-1, self.waypoints * 2)
+        return output.reshape(-1, self.waypoints * 2), physics_grads, gear_grads
 
     def inference(self, scene_feature, target_point, physics_params, gear_params):
-        self.eval()
-        with torch.no_grad():
+        if self.visualize_attention:
             return self.forward(scene_feature, target_point, physics_params, gear_params)
+        else:
+            with torch.no_grad():
+                return self.forward(scene_feature, target_point, physics_params, gear_params)
     
     def save(self, path):
         torch.save(self.state_dict(), path)

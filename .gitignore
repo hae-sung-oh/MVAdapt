@@ -155,3 +155,4 @@ pyrightconfig.json
 debug*/
 wandb/
 archive/
+finetune_dataset/

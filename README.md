@@ -19,7 +19,11 @@ This work is built upon the [CARLA Leaderboard 1.0](https://github.com/carla-sim
 
     2.1. [Install CARLA](#21-install-carla)
 
-    2.2. [Setup Environments](#22-setup-environments)
+    2.2. [Apply Patched CARLA Files](#22-apply-patched-carla-files)
+
+    2.3. [Automating the CARLA Server (Optional, Recommended)](#23-automating-the-carla-server-optional-recommended)
+
+    2.4. [Setup Environments](#23-setup-environments)
 
 3. [Pre-trained Model](#3-pre-trained-model)
 
@@ -50,11 +54,69 @@ This work is built upon the [CARLA Leaderboard 1.0](https://github.com/carla-sim
 
 ## 2. Installation
 ### 2.1. Install CARLA
-First, set up the [CARLA 0.9.13](https://carla.readthedocs.io/en/0.9.13/build_linux/). Follow the official documentation for a step-by-step guide. We recommend the pre-packaged version for ease of use.
+First, set up the [CARLA 0.9.12](https://carla.readthedocs.io/en/0.9.12/build_linux/). Follow the official documentation for a step-by-step guide. We recommend the pre-packaged version for ease of use.
 
-* Note: CARLA 0.9.14 or higher versions may have GPU ram leak issues, so we suggest to use 0.9.13 version.
+* Note: CARLA 0.9.13 or higher versions may have GPU ram leak issues on every scenario termination, so we suggest to use 0.9.12 version.
 
-### 2.2. Setup Environments
+
+### 2.2. Apply Patched CARLA Files
+To ensure full compatibility with MVAdapt and safe installation, you may need to overwrite some of the original files in your CARLA installation with the modified versions provided in this repository. These patches include modifications necessary for data collection and custom functionalities.
+
+The files inside the `MVAdapt/carla/` directory mirror the structure of the official CARLA installation. You need to copy each file from the `MVAdapt/carla/` directory to the corresponding location within your `$CARLA_ROOT` directory, overwriting the original file.
+
+Follow this procedure:
+
+* Navigate to the `MVAdapt/carla/` directory within this repository.
+
+* Identify the files and their paths. For example, you will find:
+
+    `carla/LibCarla/source/carla/Exception.cpp`
+
+    `carla/LibCarla/source/carla/client/FileTransfer.h`
+
+    `carla/PythonAPI/carla/agents/navigation/global_route_planner.py`
+
+    And other files...
+
+* For each file, copy it to the exact same relative path inside your CARLA installation directory (`/path/to/your/CARLA_0.9.12/`).
+
+* **Rebuild the Python API**: After replacing the C++ source files (`.cpp`, `.h`), you must rebuild the CARLA Python API for the changes to take effect. Navigate to your CARLA root directory and run the following command:
+
+```bash
+cd /path/to/your/CARLA_0.9.12/
+make PythonAPI
+```
+
+### 2.3. Automating the CARLA Server (Optional, Recommended)
+
+The CARLA simulator can sometimes be unstable and may shut down unexpectedly during long data generation or evaluation sessions. To prevent this from interrupting your workflow, we provide two utility scripts that will automatically restart the server if it closes.
+
+These scripts run an infinite loop that launches the CARLA server and waits for it to terminate. If the server process stops for any reason, the script will wait for two seconds and then start it again.
+
+* `carla/CarlaLoop.sh`: Use this script to run the CARLA server with a display (standard graphical mode).
+
+* `carla/Off_CarlaLoop.sh`: This script is intended for running the server in headless mode (no rendering), which is much faster and recommended for data generation.
+
+#### How to Use
+**Important**: Before running, you must edit the `$CARLA_DIST_DIR` variable inside both CarlaLoop.sh and Off_CarlaLoop.sh to point to the correct path of your CARLA installation.
+
+```bash
+# Open carla/CarlaLoop.sh and carla/Off_CarlaLoop.sh and modify this line:
+CARLA_DIST_DIR='/path/to/your/CARLA_0.9.13/LinuxNoEditor'
+```
+
+Run the script from the root directory of the MVAdapt project. You can optionally specify a port.
+
+```bash
+# To run with a display
+./carla/CarlaLoop.sh 2000
+
+# To run without a display (recommended for data generation)
+./carla/Off_CarlaLoop.sh 2000
+```
+To stop the loop and the CARLA server, simply press Ctrl+C in the terminal.
+
+### 2.4. Setup Environments
 Clone our repository and set up the Conda environment.
 ```bash
 git clone https://github.com/hae-sung-oh/MVAdapt.git
@@ -77,7 +139,7 @@ export WORK_DIR=/path/to/MVAdapt # TODO
 
 export PYTHONPATH=$PYTHONPATH:${CARLA_ROOT}/PythonAPI
 export PYTHONPATH=$PYTHONPATH:${CARLA_ROOT}/PythonAPI/carla
-export PYTHONPATH=$PYTHONPATH:$CARLA_ROOT/PythonAPI/carla/dist/carla-0.9.13-py3.8-linux-x86_64.egg
+export PYTHONPATH=$PYTHONPATH:$CARLA_ROOT/PythonAPI/carla/dist/carla-0.9.12-py3.8-linux-x86_64.egg
 export TEAM_CODE_ROOT=${WORK_DIR}/team_code
 export TEAM_CODE_MVADAPT=${WORK_DIR}/team_code_mvadapt
 export SCENARIO_RUNNER_ROOT=${WORK_DIR}/scenario_runner
@@ -87,13 +149,15 @@ export PYTHONPATH=$PYTHONPATH:$SCENARIO_RUNNER_ROOT:$LEADERBOARD_ROOT:$TEAM_CODE
 Activate these settings by running `source scripts/set_environment.sh`.
 
 ## 3. Pre-trained Model
-We provide several pre-trained models in `pretrained_models` folder to get you started:
+We provide several pre-trained models in `pretrained_models/` folder to get you started:
 
-`mvadapt.pth`: The primary MVAdapt model trained on a 27 vehicles.
+* `mvadapt.pth`: The primary MVAdapt model trained on a 27 vehicles.
 
-`mvadapt_finetuned.pth`: A version of the MVAdapt model fine-tuned for the `Carla Cola Truck` vehicle.
+* `mvadapt_finetuned.pth`: A version of the MVAdapt model fine-tuned for the `Carla Cola Truck` vehicle.
 
-`longest6/tfpp_all_0`: The backbone TransFuser++WP model originally from [here](https://github.com/autonomousvision/carla_garage), which is not adapted for multiple vehicles.
+* `longest6/tfpp_all_0`: The backbone TransFuser++WP model originally from [here](https://github.com/autonomousvision/carla_garage), which is not adapted for multiple vehicles.
+    * You can download it [here](https://s3.eu-central-1.amazonaws.com/avg-projects-2/garage_2/models/pretrained_models.zip)
+    * Unzip the zip file and place `longest6` folder to `pretrained_models/` folder.
 
 ## 4. Evaluation
 To evaluate the performance of the MVAdapt model, follow these steps.
@@ -101,7 +165,7 @@ To evaluate the performance of the MVAdapt model, follow these steps.
 ### 4.1. Run Evaluation
 First, start the CARLA server in a separate terminal:
 ```bash
-./path/to/your/CARLA_0.9.13/CarlaUE4.sh
+./carla/CarlaLoop.sh
 ```
 Then, run the full evaluation script:
 ```bash
@@ -185,7 +249,7 @@ To generate new data, you can use the provided data generation script. This scri
 
 Again, make sure that you launched a CARLA server on a seperate terminal. 
 ```bash
-./path/to/your/CARLA_0.9.13/CarlaUE4.sh
+./carla/CarlaLoop.sh
 ```
 And run the data generation script.
 ```bash

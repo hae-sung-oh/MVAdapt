@@ -385,7 +385,7 @@ class SensorAgent(autonomous_agent.AutonomousAgent):
 
     return result
 
-  @torch.inference_mode()  # Turns off gradient computation
+  # @torch.inference_mode()  # Turns off gradient computation
   def run_step(self, input_data, timestamp, sensors=None):  # pylint: disable=locally-disabled, unused-argument
     self.step += 1
 
@@ -492,92 +492,96 @@ class SensorAgent(autonomous_agent.AutonomousAgent):
           lidar_histogram[:, :, mask_ego_tensor] = 0
           lidar_bev.append(lidar_histogram)
           lidar_bev = torch.cat(lidar_bev, dim=1) # type: ignore
+    with torch.no_grad():
+      if self.config.backbone not in ('aim'):
+        self.lidar_last = deepcopy(tick_data['lidar'])
 
-    if self.config.backbone not in ('aim'):
-      self.lidar_last = deepcopy(tick_data['lidar'])
+      # prepare velocity input
+      gt_velocity = tick_data['speed']
+      velocity = gt_velocity.reshape(1, 1)  # used by transfuser
 
-    # prepare velocity input
-    gt_velocity = tick_data['speed']
-    velocity = gt_velocity.reshape(1, 1)  # used by transfuser
+      compute_debug_output = self.config.debug and (not self.save_path is None)
 
-    compute_debug_output = self.config.debug and (not self.save_path is None)
-
-    # forward pass
-    pred_wps = []
-    pred_target_speeds = []
-    pred_checkpoints = []
-    bounding_boxes = []
-    wp_selected = None
-    wp_features = []
-    for i in range(self.model_count):
-      if self.config.backbone in ('transFuser', 'aim', 'bev_encoder'):
-        pred_wp, \
-        pred_target_speed, \
-        pred_checkpoint, \
-        pred_semantic, \
-        pred_bev_semantic, \
-        pred_depth, \
-        pred_bb_features,\
-        attention_weights,\
-        pred_wp_1,\
-        selected_path,\
-        joined_wp_features = self.nets[i].forward(
-          rgb=tick_data['rgb'],
-          lidar_bev=lidar_bev,
-          target_point=tick_data['target_point'],
-          ego_vel=velocity,
-          command=tick_data['command'])
-        # Only convert bounding boxes when they are used.
-        if self.config.detect_boxes and (compute_debug_output or self.config.backbone in ('aim') or
-                                         self.stop_sign_controller):
-          pred_bounding_box = self.nets[i].convert_features_to_bb_metric(pred_bb_features)
+      # forward pass
+      pred_wps = []
+      pred_target_speeds = []
+      pred_checkpoints = []
+      bounding_boxes = []
+      wp_selected = None
+      wp_features = []
+      physics_grads, gear_grads = None, None
+      
+      for i in range(self.model_count):
+        if self.config.backbone in ('transFuser', 'aim', 'bev_encoder'):
+          pred_wp, \
+          pred_target_speed, \
+          pred_checkpoint, \
+          pred_semantic, \
+          pred_bev_semantic, \
+          pred_depth, \
+          pred_bb_features,\
+          attention_weights,\
+          pred_wp_1,\
+          selected_path,\
+          joined_wp_features = self.nets[i].forward(
+            rgb=tick_data['rgb'],
+            lidar_bev=lidar_bev,
+            target_point=tick_data['target_point'],
+            ego_vel=velocity,
+            command=tick_data['command'])
+          # Only convert bounding boxes when they are used.
+          if self.config.detect_boxes and (compute_debug_output or self.config.backbone in ('aim') or
+                                          self.stop_sign_controller):
+            pred_bounding_box = self.nets[i].convert_features_to_bb_metric(pred_bb_features)
+          else:
+            pred_bounding_box = None
         else:
-          pred_bounding_box = None
-      else:
-        raise ValueError('The chosen vision backbone does not exist. The options are: transFuser, aim, bev_encoder')
+          raise ValueError('The chosen vision backbone does not exist. The options are: transFuser, aim, bev_encoder')
 
-      if self.config.use_wp_gru:
-        if self.config.multi_wp_output:
-          wp_selected = 0
-          if F.sigmoid(selected_path)[0].item() > 0.5:
-            wp_selected = 1
-            pred_wps.append(pred_wp_1)
+        if self.config.use_wp_gru:
+          if self.config.multi_wp_output:
+            wp_selected = 0
+            if F.sigmoid(selected_path)[0].item() > 0.5:
+              wp_selected = 1
+              pred_wps.append(pred_wp_1)
+            else:
+              pred_wps.append(pred_wp)
           else:
             pred_wps.append(pred_wp)
-        else:
-          pred_wps.append(pred_wp)
-      if self.config.use_controller_input_prediction:
-        pred_target_speeds.append(F.softmax(pred_target_speed[0], dim=0))
-        pred_checkpoints.append(pred_checkpoint[0][1])
+        if self.config.use_controller_input_prediction:
+          pred_target_speeds.append(F.softmax(pred_target_speed[0], dim=0))
+          pred_checkpoints.append(pred_checkpoint[0][1])
 
-      bounding_boxes.append(pred_bounding_box)
-      wp_features.append(joined_wp_features)
+        bounding_boxes.append(pred_bounding_box)
+        wp_features.append(joined_wp_features)
 
-    # Average the predictions from ensembles
-    if self.config.detect_boxes and (compute_debug_output or self.config.backbone in ('aim') or
-                                     self.stop_sign_controller):
-      # We average bounding boxes by using non-maximum suppression on the set of all detected boxes.
-      bbs_vehicle_coordinate_system = t_u.non_maximum_suppression(bounding_boxes, self.config.iou_treshold_nms)
+      # Average the predictions from ensembles
+      if self.config.detect_boxes and (compute_debug_output or self.config.backbone in ('aim') or
+                                      self.stop_sign_controller):
+        # We average bounding boxes by using non-maximum suppression on the set of all detected boxes.
+        bbs_vehicle_coordinate_system = t_u.non_maximum_suppression(bounding_boxes, self.config.iou_treshold_nms)
 
-      self.bb_buffer.append(bbs_vehicle_coordinate_system)
-    else:
-      bbs_vehicle_coordinate_system = None
+        self.bb_buffer.append(bbs_vehicle_coordinate_system)
+      else:
+        bbs_vehicle_coordinate_system = None
 
-    if self.stop_sign_controller:
-      stop_for_stop_sign = self.stop_sign_controller_step(gt_velocity.item())
+      if self.stop_sign_controller:
+        stop_for_stop_sign = self.stop_sign_controller_step(gt_velocity.item())
 
-    if self.config.tp_attention:
-      self.tp_attention_buffer.append(attention_weights[2])
+      if self.config.tp_attention:
+        self.tp_attention_buffer.append(attention_weights[2])
 
     if self.adapt:
       pred_wps = []
       for i in range(self.model_count):
-        pred_wps.append(self.mvadapt.inference(
+        target_point_mvadapt = tick_data['target_point'].clone()
+        pred_wp_mvadapt, physics_grads, gear_grads = self.mvadapt.inference(
           scene_feature=wp_features[i],
-          target_point=tick_data['target_point'],
+          target_point=target_point_mvadapt,
           physics_params=torch.tensor(self.physics_prop, dtype=torch.float32).to(self.device).unsqueeze(0),
           gear_params=torch.tensor(self.gear_prop, dtype=torch.float32).to(self.device).unsqueeze(0)
-        ).reshape(-1, 2).unsqueeze(0))
+        )
+        pred_wps.append(pred_wp_mvadapt.reshape(-1, 2).unsqueeze(0))
       
     # Visualize the output of the last model
     # if compute_debug_output:
@@ -608,12 +612,15 @@ class SensorAgent(autonomous_agent.AutonomousAgent):
                                     gt_speed=gt_velocity,
                                     gt_wp=None,
                                     mv_wp=pred_wps[0],
-                                    wp_selected=wp_selected)
+                                    wp_selected=wp_selected,
+                                    physics_grads=physics_grads,
+                                    gear_grads=gear_grads,)
         self.debug_image_buffer = debug_image
       except Exception as e:
         print(f"Error in visualization: {e}")
         debug_image = self.debug_image_buffer
-        debug_image.save(os.path.join(dir_path, f'{self.step:04}.png'))
+        if dir_path:
+          debug_image.save(os.path.join(dir_path, f'{self.step:04}.png'))
 
     if self.config.use_wp_gru:
       self.pred_wp = torch.stack(pred_wps, dim=0).mean(dim=0)

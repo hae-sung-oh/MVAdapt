@@ -16,6 +16,7 @@ import torch
 from torch import nn
 import torch.nn.functional as F
 from PIL import Image
+import colorsys
 from copy import deepcopy
 import math
 import os
@@ -685,7 +686,9 @@ class LidarCenterNet(nn.Module):
       gt_bbs=None,
       gt_speed=None,
       gt_bev_semantic=None,
-      wp_selected=None):
+      wp_selected=None,
+      physics_grads=None,
+      gear_grads=None):
     # 0 Car, 1 Pedestrian, 2 Red light, 3 Stop sign
     color_classes = [np.array([255, 165, 0]), np.array([0, 255, 0]), np.array([255, 0, 0]), np.array([250, 160, 160])]
 
@@ -833,7 +836,7 @@ class LidarCenterNet(nn.Module):
     h, _, _ = images_lidar.shape
     cv2.putText(images_lidar, 'TARGET', (10, h-130), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (255, 0, 0), 3, cv2.LINE_AA)
     cv2.putText(images_lidar, 'GT_WP', (10, h-90), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 255, 0), 3, cv2.LINE_AA)
-    cv2.putText(images_lidar, 'BS_WP', (10, h-50), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 0, 255), 3, cv2.LINE_AA)
+    cv2.putText(images_lidar, 'BB_WP', (10, h-50), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 0, 255), 3, cv2.LINE_AA)
     cv2.putText(images_lidar, 'MV_WP', (10, h-10), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (255, 154, 212), 3, cv2.LINE_AA)
 
     rgb_image = rgb[0].permute(1, 2, 0).detach().cpu().numpy()
@@ -865,6 +868,66 @@ class LidarCenterNet(nn.Module):
       depth = pred_depth[0].cpu().detach().numpy()
       depth_image = np.stack((depth, depth, depth), axis=2)
       depth_image = (depth_image * 255).astype('uint8')
+      
+    if physics_grads is not None and gear_grads is not None:
+      torque_index = 3 + 2 * self.config.max_torque_num
+      prop_map = {
+          'Extent': (0, 3),
+          # 'Torque Curve': (3, 3 + 2 * self.config.max_torque_num),
+          'Max RPM': (torque_index, torque_index + 1),
+          'Wheel Radius': (torque_index + 1, torque_index + 2),
+          'Center of Mass': (torque_index + 2, torque_index + 3),
+          'Mass': (torque_index + 3, torque_index + 4),
+          'Wheelbase': (torque_index + 4, torque_index + 5),
+      }
+      for i in range(len(self.config.vehicle_config["physics"]["torque_curve"])):
+        prop_map.update({f'Torque {i+1}': (3 + i * 2, 3 + (i + 1) * 2)})
+      for i in range(len(self.config.vehicle_config["physics"]["forward_gears"])):
+        prop_map.update({f'Gear {i+1}': (26 + i * 3, 26 + (i + 1) * 3)})
+          
+      attention_scores = {}
+      all_grads = physics_grads.cpu().numpy().flatten()
+      gear_all_grads = gear_grads.cpu().numpy().flatten()
+      all_grads = np.concatenate([all_grads, gear_all_grads]) / self.config.attention_scale_factor
+
+      for name, (start, end) in prop_map.items():
+          grad_slice = all_grads[start:end]
+          if not np.isnan(grad_slice).all():
+              attention_scores[name] = np.nanmean(grad_slice)
+          else:
+              attention_scores[name] = 0.0
+
+      vis_x_start = images_lidar.shape[1] - 320
+      vis_y_start = 40
+      box_h = 25
+      box_w = 200
+      
+      cv2.putText(images_lidar, 'Attention Map', (vis_x_start+25, vis_y_start-10), 
+                  cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 0), 2)
+      
+      property_list = ['Extent', 'Mass', 'Wheelbase', 'Center of Mass', 'Max RPM', 'Wheel Radius'] \
+                      + [f'Torque {i+1}' for i in range(self.config.max_torque_num)] \
+                      + [f'Gear {i+1}' for i in range(self.config.max_gear_num)] 
+
+      current_y = vis_y_start
+      for name in property_list:
+          if name not in attention_scores: continue
+          score = attention_scores[name]
+          clipped_score = np.clip(score, 0.0, 1.0)
+          
+          hue = 0.0
+          saturation = 0.2 + 0.8 * clipped_score
+          value = 1.0
+
+          rgb_float = colorsys.hsv_to_rgb(hue, saturation, value)
+          color_bgr = (int(rgb_float[2] * 255), int(rgb_float[1] * 255), int(rgb_float[0] * 255))
+          
+          cv2.rectangle(images_lidar, (vis_x_start, current_y), (vis_x_start + box_w, current_y + box_h), color_bgr, -1)
+          cv2.rectangle(images_lidar, (vis_x_start, current_y), (vis_x_start + box_w, current_y + box_h), (255,255,255), 1)
+          cv2.putText(images_lidar, f'{name}: {score:.2f}', (vis_x_start + 5, current_y + box_h - 7),
+                      cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1, cv2.LINE_AA)
+          
+          current_y += box_h + 5
 
     all_images = np.concatenate((depth_image, semantic_image, rgb_image, images_lidar), axis=0)
     all_images = Image.fromarray(all_images.astype(np.uint8))

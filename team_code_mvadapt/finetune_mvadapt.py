@@ -36,7 +36,7 @@ def validate(model, args, dataset) -> None:
             target = data['target_point'].to(args.device, dtype=torch.float32)
             gt_wp = data['gt_waypoint'].to(args.device, dtype=torch.float32)
             
-            predicted = model.inference(scene_feature, target, phys, gear)
+            predicted = model.inference(scene_feature, target, phys, gear)[0]
             loss = lossfn(predicted, gt_wp)
             total_loss += loss.item()
             
@@ -71,7 +71,7 @@ def finetune(model, optimizer, args, dataset):
             gt_wp = data['gt_waypoint'].to(args.device, dtype=torch.float32)
             
             optimizer.zero_grad()
-            predicted = model.forward(scene_feature, target, phys, gear)
+            predicted = model.forward(scene_feature, target, phys, gear)[0]
             loss = loss_fn(predicted, gt_wp)
             loss.backward()
             optimizer.step()
@@ -100,7 +100,7 @@ def main():
     parser.add_argument("--save_finetuned_model", type=str, default="mvadapt_finetuned.pth")
 
     args = parser.parse_args()
-    args.vehicle_indices = f"[{args.unseen_vehicle_id}]"
+    args.vehicle_ids = f"[{args.unseen_vehicle_id}]"
     
     wandb.init(project="MVAdapt-Finetuning", config=args.__dict__)
 

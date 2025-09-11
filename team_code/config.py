@@ -115,6 +115,7 @@ class GlobalConfig:
     self.gear_length = 27
     self.mvadapt_latent_dim = 128
     self.mvadapt_gear_dim = 4
+    self.attention_scale_factor = 1e-4
 
     # -----------------------------------------------------------------------------
     # Sensor config
@@ -208,7 +209,7 @@ class GlobalConfig:
     self.logdir = ''  # Directory to log data to.
     self.load_file = None  # File to continue training from
     self.setting = 'all'  # Setting used for training
-    self.root_dir = os.getenv("WORK_DIR", '') + "/dataset"  # Dataset root dir
+    self.root_dir = os.getenv("ROOT_DIR", os.getenv("WORK_DIR", '') + "/dataset")  # Dataset root dir
     # When to reduce the learning rate for the first and second  time
     self.schedule_reduce_epoch_01 = 30
     self.schedule_reduce_epoch_02 = 40

@@ -266,10 +266,10 @@ class MVAdaptDataset(Dataset):
 
         physics_cache = {}
 
-        if args.vehicle_indices == 'all':
+        if args.vehicle_ids == 'all':
             vehicle_list = all_vehicles
         else:
-            vehicle_list = eval(args.vehicle_indices)
+            vehicle_list = eval(args.vehicle_ids)
 
         for v_index in vehicle_list:
             try:

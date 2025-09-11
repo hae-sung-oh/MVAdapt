@@ -1,28 +1,171 @@
-# MVAdapt: Multi-Vehicle Adaptation for End-to-End Autonomous Driving AI
+<!-- ![Logo](assets/MVAdapt_logo.png) -->
+<p align="center">
+  <img src=assets/MVAdapt_logo.png />
+</p>
 
-![Architecture](assets/mvadapt_v4_4_final.png)
+# MVAdapt: Multi-Vehicle Adaptation for End-to-End Autonomous Driving
 
-## In working progress!
+![Intro](assets/intro.png)
+![Architecture](assets/mvadaptarch.png)
 
-## Contents
+This repository contains the official PyTorch implementation for MVAdapt. MVAdapt enables a single, pre-trained driving model to generalize across a wide range of vehicles—from nimble sports cars to heavy trucks—by conditioning its driving policy on explicit physical parameters.
 
-## Installation
+This work is built upon the [CARLA Leaderboard 1.0](https://github.com/carla-simulator/leaderboard/tree/leaderboard-1.0) and is based on the [TransFuser ++ WP](https://github.com/autonomousvision/carla_garage) repository.
 
-## Pre-trained Model
-mvadapt.pth
+## 1. Contents
+1. [Contents](#1-contents)
 
-mvadapt_finetuned.pth
+2. [Installation](#2-installation)
 
-longest6/tfpp_all_0
+    2.1. [Install CARLA](#21-install-carla)
 
-## Evaluation
-* Parsing result
-* Creating video
+    2.2. [Setup Environments](#22-setup-environments)
 
-## Dataset
+3. [Pre-trained Model](#3-pre-trained-model)
+
+4. [Evaluation](#4-evaluation)
+
+    4.1. [Run Evaluation](#41-run-evaluation)
+
+    4.2. [Parse Results](#42-parse-result)
+
+    4.3. [Create Videos](#43-create-video)
+
+5. [Dataset](#5-dataset)
+
+6. [Dataset Generation](#6-dataset-generation)
+
+7. [Training](#7-training)
+
+    7.1. [Training from Scratch](#71-training-from-scratch)
+
+    7.2. [Few-Shot Fine-tuning](#72-few-shot-fine-tuning)
+
+8. [Citations](#8-citations)
+
+[Acknowledgements](#acknowldgements)
+
+[Appendix: Base Vehicle List](#mvadapt-multi-vehicle-adaptation-for-end-to-end-autonomous-driving)
+
+
+## 2. Installation
+### 2.1. Install CARLA
+First, set up the [CARLA 0.9.13](https://carla.readthedocs.io/en/0.9.13/build_linux/). Follow the official documentation for a step-by-step guide. We recommend the pre-packaged version for ease of use.
+
+* Note: CARLA 0.9.14 or higher versions may have GPU ram leak issues, so we suggest to use 0.9.13 version.
+
+### 2.2. Setup Environments
+Clone our repository and set up the Conda environment.
+```bash
+git clone https://github.com/hae-sung-oh/MVAdapt.git
+cd MVAdapt
+
+conda create -n mvadapt python=3.8
+conda activate mvadapt
+# May need to update C++ library
+conda update -c conda-forge libstdcxx-ng
+
+pip install -r requirements.txt
+```
+Next, configure the environment variables. Open `scripts/set_environment.sh`, and modify the `CARLA_ROOT` and `WORK_DIR` paths to match your local setup.
+```bash
+# scripts/set_environment.sh
+#!/bin/bash
+
+export CARLA_ROOT=/path/to/CARLA # TODO
+export WORK_DIR=/path/to/MVAdapt # TODO
+
+export PYTHONPATH=$PYTHONPATH:${CARLA_ROOT}/PythonAPI
+export PYTHONPATH=$PYTHONPATH:${CARLA_ROOT}/PythonAPI/carla
+export PYTHONPATH=$PYTHONPATH:$CARLA_ROOT/PythonAPI/carla/dist/carla-0.9.13-py3.8-linux-x86_64.egg
+export TEAM_CODE_ROOT=${WORK_DIR}/team_code
+export TEAM_CODE_MVADAPT=${WORK_DIR}/team_code_mvadapt
+export SCENARIO_RUNNER_ROOT=${WORK_DIR}/scenario_runner
+export LEADERBOARD_ROOT=${WORK_DIR}/leaderboard
+export PYTHONPATH=$PYTHONPATH:$SCENARIO_RUNNER_ROOT:$LEADERBOARD_ROOT:$TEAM_CODE_ROOT:$TEAM_CODE_MVADAPT:$WORK_DIR
+```
+Activate these settings by running `source scripts/set_environment.sh`.
+
+## 3. Pre-trained Model
+We provide several pre-trained models in `pretrained_models` folder to get you started:
+
+`mvadapt.pth`: The primary MVAdapt model trained on a 27 vehicles.
+
+`mvadapt_finetuned.pth`: A version of the MVAdapt model fine-tuned for the `Carla Cola Truck` vehicle.
+
+`longest6/tfpp_all_0`: The backbone TransFuser++WP model originally from [here](https://github.com/autonomousvision/carla_garage), which is not adapted for multiple vehicles.
+
+## 4. Evaluation
+To evaluate the performance of the MVAdapt model, follow these steps.
+
+### 4.1. Run Evaluation
+First, start the CARLA server in a separate terminal:
+```bash
+./path/to/your/CARLA_0.9.13/CarlaUE4.sh
+```
+Then, run the full evaluation script:
+```bash
+cd scripts/
+./run_full_evaluation.sh
+```
+You can customize the evaluation options in the `scripts/run_full_evalutation.sh` file.
+```bash
+#!/bin/bash
+
+source set_environment.sh
+
+DATE=$(date '+%y%m%d') # Result directory name. Can be customized.
+export PORT="2000"  # CARLA server port. You can run multiple evaluations by modifying here.
+export TRAFFIC_MANAGER_PORT="2500" # PORT + 500 in general.
+
+# Vehicle IDs to evaluate.
+VEHICLES=(0 1 2 3 5 6 8 9 11 12 13 14 15 18 20 21 22 23 24 25 26 27 28 29 30 31 32 33 35)
+export SPLIT="trained" # Folder name for in-distribution vehicles. Can be customized.
+
+for _VEHICLE_ID in "${VEHICLES[@]}"; do
+  export VEHICLE_ID=$_VEHICLE_ID
+  export ADAPT=1 # Turn on MVAdapt. TransFuser++WP naive transfer if 0.
+  export ADAPT_PATH="${WORK_DIR}/pretrained_models/mvadapt.pth" # MVAdapt weights path.
+  export RANDOM_PHYSICS=0 # Samples physics to generate unseen vehicle if 1.
+  # === Evaluation parameters ===
+  export CHECKPOINT="${WORK_DIR}/result/${DATE}/${SPLIT}/V${_VEHICLE_ID}/simulation_results_${_VEHICLE_ID}_${DATE}.json" 
+  export RESULT_LIST="${WORK_DIR}/result/${DATE}/${SPLIT}/V${_VEHICLE_ID}/result_list_${_VEHICLE_ID}.pickle"
+  export DEBUG_PATH="${WORK_DIR}/result/${DATE}/${SPLIT}/V${_VEHICLE_ID}/debug_${VEHICLE_ID}" # Image save path.
+  # =============================
+  export VISUALIZE_ATTENTION=0 # Whether visualize phsics attention or not. Not fully implemented yet.
+  export STREAM=1 # You can monitor the experiment.
+  echo "Starting index $VEHICLE_ID"
+  ./evaluate.sh
+done
+```
+
+
+### 4.2. Parse Result
+After the evaluation is complete, you can parse the results to get and save a summary of the driving metrics.
+```bash
+cd results/
+python parse_result.py $DIRECTORY_NAME
+```
+### 4.3. Create Video
+You can also create videos of the driving scenarios to visualize the model's performance.
+```bash
+cd results/
+python create_video.py $DIRECTORY_NAME
+```
+To save the disk space, you can specify `--clear` option to delete all temporary image files.
+```bash
+python create_video.py $DIRECTORY_NAME --clear
+```
+
+## 5. Dataset
+We provide full dataset and fine-tuning dataset. Follow the links below and unzip every zip files.
+* [Full dataset](https://huggingface.co/datasets/haesungoh/MVAdapt-Dataset): Full dataset for 27 vehicles.
+* [Fine-tuning dataset](https://huggingface.co/datasets/haesungoh/MVAdapt-Dataset-Mini): Mini dataset for `Carla Cola Truck`
+
+Here is a description of the data annotations:
 
 ```
-vehicle_index: Vehicle model index, i > 36 for randomly generated vehicle model
+vehicle_id: Vehicle model ids
 gt_waypoint: Ground truth waypoint for vehicle model
 bs_waypoint: Predicted waypoint from baseline model for default vehicle model
 gt_control: Ground truth control for vehicle model
@@ -37,13 +180,132 @@ ego_vel: Speed for ego vehicle
 command: Command for ego vehicle
 ```
 
-## Dataset Genearation
+## 6. Dataset Generation
+To generate new data, you can use the provided data generation script. This script will run the CARLA simulator to collect driving data from a variety of vehicles and scenarios.
 
-## Training
+Again, make sure that you launched a CARLA server on a seperate terminal. 
+```bash
+./path/to/your/CARLA_0.9.13/CarlaUE4.sh
+```
+And run the data generation script.
+```bash
+cd scripts/
+./run_full_generation.sh
+```
+As the evaluation script, all the options in the `script/run_full_generation.sh` file are customizable.
+```bash
+#!/bin/bash
 
-## Citations
+source set_environment.sh
 
+export PORT="2000"  # CARLA server port.
+export TRAFFIC_MANAGER_PORT="2500" # PORT + 500 in general.
+
+# Vehicle IDs to collect.
+VEHICLES=(1 2 3 5 8 9 11 12 13 14 15 18 20 21 22 23 24 25 27 28 29 30 31 32 33 35)
+SCENES=(1 3 4 7 8 9) # Specific scenarios. For further information, refer to route_scenario_local.py.
+TOWNS=(Town01 Town02 Town03 Town05 Town06) # CARLA towns.
+
+for _VEHICLE_ID in "${VEHICLES[@]}"; do
+    for _TOWN in "${TOWNS[@]}"; do
+        for _SCENE in "${SCENES[@]}"; do
+            export VEHICLE_ID=$_VEHICLE_ID
+            export SCENE=$_SCENE
+            export TOWN=$_TOWN
+            echo "Generating data for vehicle index $VEHICLE_ID, scene $SCENE, town $TOWN"
+            ./generate_data.sh
+        done
+    done
+done
+
+```
+
+## 7. Training
+### 7.1. Training from Scratch
+To train the MVAdapt model from scratch, use the following command:
+```bash
+cd scripts/
+./train_mvadapt.sh
+```
+You can specify training options in the `scripts/train_mvadapt.sh` file.
+```bash
+#!/bin/bash
+
+source set_environment.sh
+
+# === Do not modify! ===
+export DIRECT=0
+export AGENTCONFIG="${WORK_DIR}/pretrained_models/leaderboard/tfpp_wp_all_0"
+export UNCERTAINTY_THRESHOLD=0.33
+export STOP_CONTROL=0
+# ======================
+
+export VEHICLE="all" # Vehicles to train. (e.g. "[0, 1, 2]")
+export ROOT_DIR="${WORK_DIR}/dataset" # Dataset path.
+export BASE_MODEL=$AGENTCONFIG # Backbone feature extractor
+export DEVICE="cuda:0" # CUDA device. "cpu" for CPU training.
+export EPOCHS=100 # Training parameters
+export LR=0.0001
+export BATCH_SIZE=512
+export PROCESS_BATCH=64 # Batch size for data pre-processing.
+export VERBOSE=true # Log everything
+
+export REMOVE_CRASHED=false # Remove crashed data
+export REMOVE_IMPERFECT=false # Remove imperfect driving data
+# export MOVE_DUP_DIR="${WORK_DIR}/dataset_backup"
+
+# Data pre-processing for the first run. Comment out after saving processed pkl file.  
+export LOAD_DATA="None"
+export SAVE_DATA="${WORK_DIR}/dataset/mvadapt_dataset"
+# Uncomment to load processed pkl file.
+# export LOAD_DATA="${WORK_DIR}/dataset/mvadapt_dataset"
+# export SAVE_DATA="None"
+
+# Path to save trained weights.
+export LOAD_MODEL="None"
+export SAVE_MODEL="${WORK_DIR}/pretrained_models/mvadapt.pth"
+# export LOAD_MODEL="${WORK_DIR}/pretrained_models/mvadapt.pth"
+# export SAVE_MODEL="None"
+
+python ${WORK_DIR}/team_code_mvadapt/train_mvadapt.py \
+--vehicle_ids=${VEHICLE} \
+--root_dir=${ROOT_DIR} \
+--base_model=${BASE_MODEL} \
+--device=${DEVICE} \
+--epochs=${EPOCHS} \
+--lr=${LR} \
+--batch_size=${BATCH_SIZE} \
+--process_batch=${PROCESS_BATCH} \
+--save_data=${SAVE_DATA} \
+--save_model=${SAVE_MODEL} \
+--load_data=${LOAD_DATA} \
+--load_model=${LOAD_MODEL} \
+--verbose=${VERBOSE} \
+--remove_crashed=${REMOVE_CRASHED} \
+--remove_imperfect=${REMOVE_IMPERFECT} \
+--move_dup_dir=${MOVE_DUP_DIR}
+```
+### 7.2. Few-shot Fine-tuning
+If you want to fine-tune the model on a new vehicle with limited data, you can use the few-shot fine-tuning script:
+```bash
+cd scripts/
+./finetune_mvadapt.sh
+```
+You can also modify fine-tuning parameters as well as full-training by modifiying `scripts/finetune_mvadapt.sh`.
+
+## 8. Citations
+If you find this work useful, please consider citing our paper:
+```
+Pending
+```
 ## Acknowldgements
+We thank to prior works below:
+* [TransFuser++ WP](https://github.com/autonomousvision/carla_garage)
+* [CARLA](https://github.com/carla-simulator/carla)
+* [CARLA Leaderboard](https://github.com/carla-simulator/leaderboard)
+* [CARLA Scenario Runner](https://github.com/carla-simulator/scenario_runner)
+* [One Policy to Run Them All](https://github.com/nico-bohlinger/one_policy_to_run_them_all)
+* [Body Transformer](https://github.com/carlosferrazza/BodyTransformer)
 
 ## Appendix
 
@@ -86,5 +348,3 @@ command: Command for ego vehicle
 35 vehicle.volkswagen.t2
 36 vehicle.yamaha.yzf
 ```
-
-This repo is originally from [CARLA_garage](https://github.com/autonomousvision/carla_garage)

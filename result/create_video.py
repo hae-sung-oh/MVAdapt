@@ -1,14 +1,14 @@
 import subprocess
 from glob import glob
 from os.path import join, isdir, isfile, abspath
-from os import listdir, remove
+from os import listdir, remove, cpu_count
 from argparse import ArgumentParser
+from concurrent.futures import ThreadPoolExecutor
 
 def create_video(root, args):
     frame_rate = 20
     output_video = join(root, "output.mp4")
 
-    # Ensure images exist
     image_files = sorted(glob(join(root, "*.png")))
     if not image_files:
         print(f"No PNG images found in {root}, skipping...")
@@ -37,7 +37,6 @@ def create_video(root, args):
         output_video
     ]
 
-    # Run FFmpeg command
     try:
         subprocess.run(ffmpeg_cmd, check=True)
         print(f"Video created at {output_video}")
@@ -46,6 +45,7 @@ def create_video(root, args):
         
     if args.clear:
         clear_folder(root)
+    
     if isfile(list_path):
         remove(list_path)
         
@@ -62,19 +62,31 @@ if __name__ == "__main__":
     args.add_argument("--overwrite", action="store_true")
     args = args.parse_args()
     
+    task_paths = []
     splits = [s for s in listdir(args.root) if isdir(join(args.root, s))]
     
     for split in splits:
         vehicles = [v for v in listdir(join(args.root, split)) if isdir(join(args.root, split, v))]
         
         for vehicle in vehicles:
-            debug = join(args.root, split, vehicle, f"debug_{vehicle.split('V')[1]}")
-            if not isdir(debug):
+            try:
+                debug_folder_name = f"debug_{vehicle.split('V')[1]}"
+                debug_path = join(args.root, split, vehicle, debug_folder_name)
+            except IndexError:
+                continue
+
+            if not isdir(debug_path):
                 continue
             
-            routes = [r for r in listdir(debug) if isdir(join(debug, r))]
+            routes = [r for r in listdir(debug_path) if isdir(join(debug_path, r))]
             
             for route in routes:
-                route_path = join(debug, route)
+                route_path = join(debug_path, route)
                 print(f"Creating video for {route_path}")
-                create_video(route_path, args)
+                task_paths.append(route_path)
+
+    if not task_paths:
+        exit()
+
+    with ThreadPoolExecutor(max_workers=4) as executor:
+        executor.map(lambda path: create_video(path, args), task_paths)

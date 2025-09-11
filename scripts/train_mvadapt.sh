@@ -17,8 +17,8 @@ export BATCH_SIZE=512
 export PROCESS_BATCH=64
 export VERBOSE=true
 
-export REMOVE_CRASHED=true
-export REMOVE_IMPERFECT=true
+export REMOVE_CRASHED=false
+export REMOVE_IMPERFECT=false
 # export MOVE_DUP_DIR="${WORK_DIR}/dataset_backup"
 
 # export LOAD_DATA="${WORK_DIR}/dataset/mvadapt_dataset"

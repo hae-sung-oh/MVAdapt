@@ -13,7 +13,7 @@
 
 # MVAdapt: Multi-Vehicle Adaptation for End-to-End Autonomous Driving
 
-![Intro](assets/intro.png)
+<!-- ![Intro](assets/intro.png) -->
 ![Architecture](assets/mvadaptarch.png)
 
 This repository contains the official PyTorch implementation for MVAdapt. MVAdapt enables a single, pre-trained driving model to generalize across a wide range of vehicles—from nimble sports cars to heavy trucks—by conditioning its driving policy on explicit physical parameters.

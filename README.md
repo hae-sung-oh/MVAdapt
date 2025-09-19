@@ -2,8 +2,14 @@
 <p align="center">
   <img src=assets/MVAdapt_logo.png />
 </p>
+<p align="center">
+  <img src=assets/MVAdapt_demo.gif />
+</p>
 
 # MVAdapt: Multi-Vehicle Adaptation for End-to-End Autonomous Driving
+<div class="youtubeWrap">
+    <iframe src="https://youtu.be/evFGHXB_lE0?si=8Y0h5tX0KLCRsEE_" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+</div>
 
 ![Intro](assets/intro.png)
 ![Architecture](assets/mvadaptarch.png)

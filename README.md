@@ -5,7 +5,7 @@
 <p align="center">
   <figure>
     <a href="https://youtu.be/evFGHXB_lE0?si=8Y0h5tX0KLCRsEE_">
-      <img src="assets/MVAdapt_demo.gif" alt="MVAdapt Demo GIF" width="700">
+      <img src="assets/MVAdapt_demo.gif" alt="MVAdapt Demo GIF" width="900">
     </a>
     <figcaption>▲ Click to go to Youtube demo video</figcaption>
   </figure>

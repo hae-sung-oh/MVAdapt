@@ -3,13 +3,15 @@
   <img src=assets/MVAdapt_logo.png />
 </p>
 <p align="center">
-  <img src=assets/MVAdapt_demo.gif />
+  <figure>
+    <a href="https://youtu.be/evFGHXB_lE0?si=8Y0h5tX0KLCRsEE_">
+      <img src="assets/MVAdapt_demo.gif" alt="MVAdapt Demo GIF" width="700">
+    </a>
+    <figcaption>▲ Click to go to Youtube demo video</figcaption>
+  </figure>
 </p>
 
 # MVAdapt: Multi-Vehicle Adaptation for End-to-End Autonomous Driving
-<div class="youtubeWrap">
-    <iframe src="https://youtu.be/evFGHXB_lE0?si=8Y0h5tX0KLCRsEE_" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
-</div>
 
 ![Intro](assets/intro.png)
 ![Architecture](assets/mvadaptarch.png)
@@ -162,7 +164,7 @@ We provide several pre-trained models in `pretrained_models/` folder to get you 
 * `mvadapt_finetuned.pth`: A version of the MVAdapt model fine-tuned for the `Carla Cola Truck` vehicle.
 
 * `longest6/tfpp_all_0`: The backbone TransFuser++WP model originally from [here](https://github.com/autonomousvision/carla_garage), which is not adapted for multiple vehicles.
-    * You can download it [here](https://s3.eu-central-1.amazonaws.com/avg-projects-2/garage_2/models/pretrained_models.zip)
+    * You can download it [here](https://drive.google.com/file/d/1uhNdwepGga65MV158CwFAosP1QVs34LM/view?usp=sharing)
     * Unzip the zip file and place `longest6` folder to `pretrained_models/` folder.
 
 ## 4. Evaluation
